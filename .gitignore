@@ -21,3 +21,5 @@
 *.dSYM/
 *.pdb
 *.su
+
+*/data/
