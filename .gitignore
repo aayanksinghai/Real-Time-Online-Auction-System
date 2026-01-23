@@ -1,0 +1,23 @@
+# Object files
+*.o
+*.obj
+
+# Executables
+*.exe
+*.out
+*.app
+# Executables without extension (common in Linux/macOS)
+*~
+[a.out] # A common default executable name
+
+# Libraries
+*.lib
+*.a
+*.dll
+*.so
+*.dylib
+
+# Debug files
+*.dSYM/
+*.pdb
+*.su
