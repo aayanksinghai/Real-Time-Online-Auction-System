@@ -8,6 +8,8 @@
 
 #define ITEM_FILE "data/items.dat"
 
+extern int transfer_funds(int from_user_id, int to_user_id, int amount);
+
 int get_next_item_id(int fd) {
     long size = lseek(fd, 0, SEEK_END);
     if (size == 0) return 1;
@@ -146,4 +148,51 @@ int place_bid(int item_id, int user_id, int bid_amount) {
     
     close(fd);
     return 1;
+}
+
+int close_auction(int item_id, int seller_id) {
+    int fd = open(ITEM_FILE, O_RDWR);
+    if (fd == -1) return -1;
+
+    off_t offset = (item_id - 1) * sizeof(Item);
+
+    // 1. Lock Item
+    if (lock_record(fd, F_WRLCK, offset, sizeof(Item)) == -1) {
+        close(fd); return -1;
+    }
+
+    Item item;
+    lseek(fd, offset, SEEK_SET);
+    read(fd, &item, sizeof(Item));
+
+    // 2. Validate
+    if (item.seller_id != seller_id) {
+        unlock_record(fd, offset, sizeof(Item)); close(fd); return -2; // Not your item
+    }
+    if (item.status != ITEM_ACTIVE) {
+        unlock_record(fd, offset, sizeof(Item)); close(fd); return -3; // Already closed
+    }
+    if (item.current_winner_id == -1) {
+        // No bids? Just close it without transfer
+        item.status = ITEM_SOLD; // Or ITEM_REJECTED
+        lseek(fd, offset, SEEK_SET); write(fd, &item, sizeof(Item));
+        unlock_record(fd, offset, sizeof(Item)); close(fd);
+        return 0; // Closed with no winner
+    }
+
+    // 3. Perform Transaction (Winner -> Seller)
+    int trans_status = transfer_funds(item.current_winner_id, item.seller_id, item.current_bid);
+    
+    if (trans_status == 1) {
+        // Success! Mark item sold
+        item.status = ITEM_SOLD;
+        lseek(fd, offset, SEEK_SET);
+        write(fd, &item, sizeof(Item));
+    }
+
+    // 4. Unlock Item
+    unlock_record(fd, offset, sizeof(Item));
+    close(fd);
+    
+    return trans_status; // 1 = Success, -2 = Low Balance
 }

@@ -128,6 +128,27 @@ void *client_handler(void *socket_desc) {
                     sprintf(res.message, "Bid Failed: System Error or Invalid ID.");
                 }
                 break;
+
+            case OP_CLOSE_AUCTION:
+                int c_item_id;
+                sscanf(req.payload, "%d", &c_item_id);
+                
+                int close_result = close_auction(c_item_id, my_user_id);
+                
+                if (close_result == 1) {
+                    res.operation = OP_SUCCESS;
+                    strcpy(res.message, "Auction Closed! Funds Transferred.");
+                } else if (close_result == 0) {
+                     res.operation = OP_SUCCESS;
+                     strcpy(res.message, "Auction Closed (No Bids).");
+                } else if (close_result == -2) {
+                     res.operation = OP_ERROR;
+                     strcpy(res.message, "Error: Winner has insufficient funds!");
+                } else {
+                     res.operation = OP_ERROR;
+                     strcpy(res.message, "Error closing auction.");
+                }
+                break;
         }
         send(sock, &res, sizeof(Response), 0);
     }

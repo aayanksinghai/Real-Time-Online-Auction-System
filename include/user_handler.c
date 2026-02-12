@@ -63,6 +63,7 @@ int register_user(char *username, char *password, int role) {
     strcpy(new_user.username, username);
     strcpy(new_user.password, password);
     new_user.role = role;
+    new_user.balance = 10000; //For testing (Initial Money)
 
     write(fd, &new_user, sizeof(User));
 
@@ -97,4 +98,60 @@ int authenticate_user(char *username, char *password) {
     fcntl(fd, F_SETLKW, &lock);
     close(fd);
     return found_id;
+}
+
+int transfer_funds(int from_user_id, int to_user_id, int amount) {
+    int fd = open(USER_FILE, O_RDWR);
+    if (fd == -1) return -1;
+
+    // DEADLOCK PREVENTION: Always lock smaller ID first
+    int first_id = (from_user_id < to_user_id) ? from_user_id : to_user_id;
+    int second_id = (from_user_id < to_user_id) ? to_user_id : from_user_id;
+
+    off_t offset1 = (first_id - 1) * sizeof(User);
+    off_t offset2 = (second_id - 1) * sizeof(User);
+
+    // 1. Lock First User
+    if (lock_record(fd, F_WRLCK, offset1, sizeof(User)) == -1) {
+        close(fd); return -1;
+    }
+    
+    // 2. Lock Second User
+    if (lock_record(fd, F_WRLCK, offset2, sizeof(User)) == -1) {
+        unlock_record(fd, offset1, sizeof(User)); // Rollback
+        close(fd); return -1;
+    }
+
+    // 3. Read Both Users
+    User u1, u2;
+    lseek(fd, offset1, SEEK_SET); read(fd, &u1, sizeof(User));
+    lseek(fd, offset2, SEEK_SET); read(fd, &u2, sizeof(User));
+
+    // 4. Identify Payer and Payee (since we swapped IDs for locking)
+    User *payer = (u1.id == from_user_id) ? &u1 : &u2;
+    User *payee = (u1.id == to_user_id) ? &u1 : &u2;
+
+    // 5. Check Balance
+    if (payer->balance < amount) {
+        // Insufficient funds
+        unlock_record(fd, offset2, sizeof(User));
+        unlock_record(fd, offset1, sizeof(User));
+        close(fd);
+        return -2;
+    }
+
+    // 6. Perform Transfer
+    payer->balance -= amount;
+    payee->balance += amount;
+
+    // 7. Write Back
+    lseek(fd, offset1, SEEK_SET); write(fd, &u1, sizeof(User));
+    lseek(fd, offset2, SEEK_SET); write(fd, &u2, sizeof(User));
+
+    // 8. Unlock Both
+    unlock_record(fd, offset2, sizeof(User));
+    unlock_record(fd, offset1, sizeof(User));
+    
+    close(fd);
+    return 1;
 }

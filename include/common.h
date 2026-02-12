@@ -12,6 +12,7 @@
 #define OP_CREATE_ITEM 4
 #define OP_LIST_ITEMS 5
 #define OP_BID 6
+#define OP_CLOSE_AUCTION 7
 #define OP_SUCCESS 100
 #define OP_ERROR 101
 
@@ -29,6 +30,7 @@ typedef struct {
     char username[50];
     char password[50];
     int role;         // ROLE_ADMIN or ROLE_USER
+    int balance;
 } User;
 
 typedef struct {
