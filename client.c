@@ -55,15 +55,48 @@ int main() {
                 int logged_in = 1;
                 while(logged_in) {
                     printf("\n--- AUCTION MENU ---\n");
-                    printf("1. List Items (Placeholder)\n");
-                    printf("2. Logout\n");
+                    printf("1. List New Item (Sell)\n");
+                    printf("2. View All Items (Buy)\n");
+                    printf("3. Logout\n");
                     printf("Enter choice: ");
-                    
                     int menu_choice;
                     scanf("%d", &menu_choice);
                     clear_input();
 
-                    if (menu_choice == 2) {
+                    if (menu_choice == 1) {
+                        req.operation = OP_CREATE_ITEM;
+                        char name[50], desc[100], date[20];
+                        int price;
+                        
+                        printf("Item Name: "); scanf("%[^\n]", name); clear_input();
+                        printf("Description: "); scanf("%[^\n]", desc); clear_input();
+                        printf("Base Price: "); scanf("%d", &price); clear_input();
+                        printf("End Date (YYYY-MM-DD): "); scanf("%s", date); clear_input();
+                        
+                        // Pack into payload
+                        sprintf(req.payload, "%s|%s|%d|%s", name, desc, price, date);
+                        send(sock, &req, sizeof(Request), 0);
+                        recv(sock, &res, sizeof(Response), 0);
+                        printf("Server: %s\n", res.message);
+                    }
+                    else if (menu_choice == 2) {
+                        req.operation = OP_LIST_ITEMS;
+                        send(sock, &req, sizeof(Request), 0);
+                        
+                        // Read Count
+                        recv(sock, &res, sizeof(Response), 0);
+                        int count = atoi(res.message);
+                        printf("\nFound %d Active Auctions:\n", count);
+                        printf("ID\tName\t\tPrice\tHighest Bidder\n");
+                        printf("----------------------------------------------------\n");
+                        
+                        Item item;
+                        for(int i=0; i<count; i++) {
+                            recv(sock, &item, sizeof(Item), 0);
+                            printf("%d\t%s\t\t%d\t%d\n", item.id, item.name, item.current_bid, item.current_winner_id);
+                        }
+                    }
+                    else if (menu_choice == 3) {
                         // Send Exit Request to Server to clear session
                         req.operation = OP_EXIT;
                         send(sock, &req, sizeof(Request), 0);

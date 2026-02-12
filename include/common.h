@@ -9,8 +9,14 @@
 #define OP_LOGIN 1
 #define OP_REGISTER 2
 #define OP_EXIT 3
+#define OP_CREATE_ITEM 4
+#define OP_LIST_ITEMS 5
 #define OP_SUCCESS 100
 #define OP_ERROR 101
+
+// Item Status Constants
+#define ITEM_ACTIVE 1
+#define ITEM_SOLD 2
 
 // User Roles
 #define ROLE_ADMIN 1
@@ -23,6 +29,18 @@ typedef struct {
     char password[50];
     int role;         // ROLE_ADMIN or ROLE_USER
 } User;
+
+typedef struct {
+    int id;
+    char name[50];
+    char description[100];
+    int seller_id;          // Who is selling it
+    int current_winner_id;  // Who has the highest bid (-1 if none)
+    int base_price;
+    int current_bid;        // Current highest price
+    char end_date[20];
+    int status;             // ITEM_ACTIVE or ITEM_SOLD
+} Item;
 
 // Protocol Message
 typedef struct {

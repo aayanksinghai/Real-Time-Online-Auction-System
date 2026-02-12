@@ -10,6 +10,8 @@
 
 int register_user(char *username, char *password, int role);
 int authenticate_user(char *username, char *password);
+int create_item(char *name, char *desc, int base_price, char *date, int seller_id);
+int get_all_items(Item *buffer, int max_items);
 
 void *client_handler(void *socket_desc) {
     int sock = *(int*)socket_desc;
@@ -58,6 +60,42 @@ void *client_handler(void *socket_desc) {
                     strcpy(res.message, "Invalid Credentials.");
                 }
                 break;
+
+
+            case OP_CREATE_ITEM:
+                printf("User %d listing item: %s\n", my_user_id, req.payload); 
+                // Client sends "Name|Desc|Price|Date" string in payload
+                
+                char i_name[50], i_desc[100], i_date[20];
+                int i_price;
+                sscanf(req.payload, "%[^|]|%[^|]|%d|%s", i_name, i_desc, &i_price, i_date);
+                
+                int item_id = create_item(i_name, i_desc, i_price, i_date, my_user_id);
+                
+                if (item_id > 0) {
+                    res.operation = OP_SUCCESS;
+                    sprintf(res.message, "Item Listed Successfully! ID: %d", item_id);
+                } else {
+                    res.operation = OP_ERROR;
+                    strcpy(res.message, "Failed to list item.");
+                }
+                break;
+
+            case OP_LIST_ITEMS:
+                // We need to send a list. The Response struct only has a small message buffer.
+                // We will send a header first, then the items one by one.
+                Item items[50];
+                int count = get_all_items(items, 50);
+                
+                res.operation = OP_SUCCESS;
+                sprintf(res.message, "%d", count); // Send count first
+                send(sock, &res, sizeof(Response), 0);
+                
+                // Send actual items
+                for(int i=0; i<count; i++) {
+                    send(sock, &items[i], sizeof(Item), 0);
+                }
+                continue; // Skip the default send at bottom since we already sent response
 
             case OP_EXIT:
                 if (my_user_id != -1) remove_session(my_user_id);

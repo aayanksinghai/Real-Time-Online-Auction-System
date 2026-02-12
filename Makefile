@@ -4,7 +4,7 @@ CFLAGS = -I./include -pthread
 all: server client init_db
 
 server: server.c include/file_handler.c include/user_handler.c include/session.c
-	$(CC) $(CFLAGS) server.c include/file_handler.c include/user_handler.c include/session.c -o server
+	$(CC) $(CFLAGS) server.c include/file_handler.c include/user_handler.c include/session.c include/item_handler.c -o server
 
 client: client.c
 	$(CC) $(CFLAGS) client.c -o client
