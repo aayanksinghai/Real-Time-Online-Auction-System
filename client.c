@@ -59,7 +59,8 @@ int main() {
                     printf("2. View All Items (Buy)\n");
                     printf("3. Place Bid\n");
                     printf("4. Close Auction (Seller)\n");
-                    printf("5. Logout\n");
+                    printf("5. Check Balance\n");
+                    printf("6. Logout\n");
                     printf("Enter choice: ");
                     int menu_choice;
                     scanf("%d", &menu_choice);
@@ -125,6 +126,13 @@ int main() {
                         printf("Server: %s\n", res.message);
                     }
                     else if (menu_choice == 5) {
+                        req.operation = OP_VIEW_BALANCE;
+                        // No payload needed, server knows ID from session
+                        send(sock, &req, sizeof(Request), 0);
+                        recv(sock, &res, sizeof(Response), 0);
+                        printf("Server: %s\n", res.message);
+                    }
+                    else if (menu_choice == 6) {
                         req.operation = OP_EXIT;
                         send(sock, &req, sizeof(Request), 0);
                         logged_in = 0;

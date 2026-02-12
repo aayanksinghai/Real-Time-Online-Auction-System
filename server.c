@@ -15,6 +15,7 @@ int authenticate_user(char *username, char *password);
 int create_item(char *name, char *desc, int base_price, char *date, int seller_id);
 int get_all_items(Item *buffer, int max_items);
 int place_bid(int item_id, int user_id, int bid_amount);
+int get_user_balance(int user_id);
 
 void *client_handler(void *socket_desc) {
     int sock = *(int*)socket_desc;
@@ -147,6 +148,18 @@ void *client_handler(void *socket_desc) {
                 } else {
                      res.operation = OP_ERROR;
                      strcpy(res.message, "Error closing auction.");
+                }
+                break;
+
+            case OP_VIEW_BALANCE:
+                int bal = get_user_balance(my_user_id);
+                
+                if (bal >= 0) {
+                    res.operation = OP_SUCCESS;
+                    sprintf(res.message, "Current Balance: $%d", bal);
+                } else {
+                    res.operation = OP_ERROR;
+                    strcpy(res.message, "Error retrieving balance.");
                 }
                 break;
         }

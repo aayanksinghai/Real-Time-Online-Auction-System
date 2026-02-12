@@ -73,6 +73,29 @@ int register_user(char *username, char *password, int role) {
     return new_user.id;
 }
 
+int get_user_balance(int user_id) {
+    int fd = open(USER_FILE, O_RDONLY);
+    if (fd == -1) return -1;
+
+    off_t offset = (user_id - 1) * sizeof(User);
+    
+    if (lock_record(fd, F_RDLCK, offset, sizeof(User)) == -1) {
+        close(fd); return -1;
+    }
+
+    User u;
+    lseek(fd, offset, SEEK_SET);
+    if (read(fd, &u, sizeof(User)) <= 0) {
+        unlock_record(fd, offset, sizeof(User));
+        close(fd); 
+        return -1;
+    }
+
+    unlock_record(fd, offset, sizeof(User));
+    close(fd);
+    return u.balance;
+}
+
 int authenticate_user(char *username, char *password) {
     int fd = open(USER_FILE, O_RDONLY);
     if (fd == -1) return -1;

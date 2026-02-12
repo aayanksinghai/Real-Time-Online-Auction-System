@@ -13,6 +13,7 @@
 #define OP_LIST_ITEMS 5
 #define OP_BID 6
 #define OP_CLOSE_AUCTION 7
+#define OP_VIEW_BALANCE 8
 #define OP_SUCCESS 100
 #define OP_ERROR 101
 
