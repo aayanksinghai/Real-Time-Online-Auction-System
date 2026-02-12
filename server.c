@@ -8,10 +8,13 @@
 #include "include/file_handler.h" // You need to add prototypes for user_handler here or create a user_handler.h
 #include "include/session.h"
 
+#define PORT 8085
+
 int register_user(char *username, char *password, int role);
 int authenticate_user(char *username, char *password);
 int create_item(char *name, char *desc, int base_price, char *date, int seller_id);
 int get_all_items(Item *buffer, int max_items);
+int place_bid(int item_id, int user_id, int bid_amount);
 
 void *client_handler(void *socket_desc) {
     int sock = *(int*)socket_desc;
@@ -101,6 +104,30 @@ void *client_handler(void *socket_desc) {
                 if (my_user_id != -1) remove_session(my_user_id);
                 close(sock);
                 return NULL;
+
+            case OP_BID:
+                int b_item_id, b_amount;
+                // Client sends "ItemID|Amount" in payload
+                sscanf(req.payload, "%d|%d", &b_item_id, &b_amount);
+                
+                printf("User %d trying to bid %d on Item %d\n", my_user_id, b_amount, b_item_id);
+                
+                int result = place_bid(b_item_id, my_user_id, b_amount);
+                
+                if (result == 1) {
+                    res.operation = OP_SUCCESS;
+                    sprintf(res.message, "Bid Accepted! You are the highest bidder.");
+                } else if (result == -3) {
+                    res.operation = OP_ERROR;
+                    sprintf(res.message, "Bid Failed: Amount too low (Current bid is higher).");
+                } else if (result == -4) {
+                    res.operation = OP_ERROR;
+                    sprintf(res.message, "Bid Failed: Auction is closed.");
+                } else {
+                    res.operation = OP_ERROR;
+                    sprintf(res.message, "Bid Failed: System Error or Invalid ID.");
+                }
+                break;
         }
         send(sock, &res, sizeof(Response), 0);
     }

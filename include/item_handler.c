@@ -35,7 +35,7 @@ int create_item(char *name, char *desc, int base_price, char *date, int seller_i
     new_item.current_bid = base_price; // Initial bid is base price
     strcpy(new_item.end_date, date);
     new_item.seller_id = seller_id;
-    new_item.current_winner_id = -1; // No bidder yet
+    new_item.current_winner_id = -1; // No bidder yet (no bids have been placed yet)
     new_item.status = ITEM_ACTIVE;
 
     // Write to file
@@ -76,4 +76,74 @@ int get_all_items(Item *buffer, int max_items) {
     close(fd);
     
     return count;
+}
+
+// Returns: 
+// 1 = Success
+// -1 = File Error
+// -2 = Item not found
+// -3 = Bid too low (someone else bid higher while you were thinking)
+// -4 = Auction ended
+int place_bid(int item_id, int user_id, int bid_amount) {
+    int fd = open(ITEM_FILE, O_RDWR);
+    if (fd == -1) return -1;
+
+    // 1. Calculate Offset for Record Locking
+    // Items are 1-indexed in our logic, so we subtract 1 to get 0-indexed offset
+    // However, in create_item we did: id = (size / sizeof) + 1. 
+    // So Item ID 1 is at offset 0. Item ID 2 is at offset sizeof(Item).
+    off_t offset = (item_id - 1) * sizeof(Item);
+
+    // 2. APPLY WRITE LOCK (EXCLUSIVE) ON THIS SPECIFIC RECORD
+    // This allows other users to bid on Item #2 while we lock Item #1
+    struct flock lock;
+    lock.l_type = F_WRLCK;
+    lock.l_whence = SEEK_SET;
+    lock.l_start = offset;
+    lock.l_len = sizeof(Item);
+    
+    // Blocking call: wait if someone else is currently bidding on THIS item
+    if (fcntl(fd, F_SETLKW, &lock) == -1) {
+        close(fd);
+        return -1;
+    }
+
+    // 3. Read the Item (Critical Section)
+    Item item;
+    lseek(fd, offset, SEEK_SET);
+    if (read(fd, &item, sizeof(Item)) <= 0) {
+        // Unlock and fail
+        lock.l_type = F_UNLCK;
+        fcntl(fd, F_SETLKW, &lock);
+        close(fd);
+        return -2; // Item ID invalid
+    }
+
+    // 4. Validate Logic (The "Business Rules")
+    if (item.status != ITEM_ACTIVE) {
+        lock.l_type = F_UNLCK;
+        fcntl(fd, F_SETLKW, &lock);
+        close(fd);
+        return -4; // Auction ended
+    }
+
+    if (bid_amount <= item.current_bid) {
+        lock.l_type = F_UNLCK;
+        fcntl(fd, F_SETLKW, &lock);
+        close(fd);
+        return -3; // Someone outbid you or bid is too low
+    }
+
+    item.current_bid = bid_amount;
+    item.current_winner_id = user_id;
+    
+    // 6. Write Back
+    lseek(fd, offset, SEEK_SET); // Move pointer back to start of record
+    write(fd, &item, sizeof(Item));
+
+    lock.l_type = F_UNLCK;
+    fcntl(fd, F_SETLKW, &lock);
+    
+    close(fd);
+    return 1;
 }

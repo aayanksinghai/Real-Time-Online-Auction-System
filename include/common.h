@@ -1,7 +1,7 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-#define PORT 8080
+#define PORT 8085
 #define BUFFER_SIZE 1024
 #define MAX_CLIENTS 10
 
@@ -11,6 +11,7 @@
 #define OP_EXIT 3
 #define OP_CREATE_ITEM 4
 #define OP_LIST_ITEMS 5
+#define OP_BID 6
 #define OP_SUCCESS 100
 #define OP_ERROR 101
 

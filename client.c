@@ -57,7 +57,8 @@ int main() {
                     printf("\n--- AUCTION MENU ---\n");
                     printf("1. List New Item (Sell)\n");
                     printf("2. View All Items (Buy)\n");
-                    printf("3. Logout\n");
+                    printf("3. Place Bid\n");
+                    printf("4. Logout\n");
                     printf("Enter choice: ");
                     int menu_choice;
                     scanf("%d", &menu_choice);
@@ -97,13 +98,26 @@ int main() {
                         }
                     }
                     else if (menu_choice == 3) {
-                        // Send Exit Request to Server to clear session
+                        req.operation = OP_BID;
+                        int item_id, amount;
+                        
+                        printf("Enter Item ID to bid on: "); 
+                        scanf("%d", &item_id);
+                        printf("Enter your Bid Amount: "); 
+                        scanf("%d", &amount);
+                        clear_input();
+                        
+                        sprintf(req.payload, "%d|%d", item_id, amount);
+                        send(sock, &req, sizeof(Request), 0);
+                        
+                        recv(sock, &res, sizeof(Response), 0);
+                        printf("Server: %s\n", res.message);
+                    }
+                    else if (menu_choice == 4) {
                         req.operation = OP_EXIT;
                         send(sock, &req, sizeof(Request), 0);
-                        logged_in = 0; // Break loop to go back to main menu
-                        printf("Logged out successfully.\n");
-                    } else {
-                        printf("Feature coming in Phase 3!\n");
+                        logged_in = 0;
+                        printf("Logged out.\n");
                     }
                 }
             }
