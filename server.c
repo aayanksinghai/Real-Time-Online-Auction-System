@@ -7,6 +7,7 @@
 #include "include/common.h"
 #include "include/file_handler.h" // You need to add prototypes for user_handler here or create a user_handler.h
 #include "include/session.h"
+#include "include/logger.h"
 
 #define PORT 8085
 
@@ -200,6 +201,9 @@ int main() {
     printf("Auction Server running on port %d\n", PORT);
     while (1) {
         if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) continue;
+        char log_msg[100];
+        sprintf(log_msg, "New connection accepted from %s:%d", inet_ntoa(address.sin_addr), ntohs(address.sin_port));
+        write_log(log_msg);
         pthread_t thread_id;
         new_sock = malloc(sizeof(int)); *new_sock = new_socket;
         pthread_create(&thread_id, NULL, client_handler, (void*)new_sock);

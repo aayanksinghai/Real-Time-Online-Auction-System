@@ -4,7 +4,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include "common.h"
-// #include "file_handler.h" // Your existing file handler
+#include "logger.h"
+#include "file_handler.h"
 
 #define USER_FILE "data/users.dat"
 
@@ -66,6 +67,10 @@ int register_user(char *username, char *password, int role) {
     new_user.balance = 10000; //For testing (Initial Money)
 
     write(fd, &new_user, sizeof(User));
+
+    char log_buffer[256];
+    sprintf(log_buffer, "New User Registered: ID %d Name %s", new_user.id, username);
+    write_log(log_buffer);
 
     lock.l_type = F_UNLCK;
     fcntl(fd, F_SETLKW, &lock);

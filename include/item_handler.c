@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include "common.h"
 #include "file_handler.h"
+#include "logger.h"
 
 #define ITEM_FILE "data/items.dat"
 
@@ -147,6 +148,9 @@ int place_bid(int item_id, int user_id, int bid_amount) {
     fcntl(fd, F_SETLKW, &lock);
     
     close(fd);
+    char log_msg[100];
+    sprintf(log_msg, "User %d placed bid %d on Item %d", user_id, bid_amount, item_id);
+    write_log(log_msg);
     return 1;
 }
 
@@ -193,6 +197,10 @@ int close_auction(int item_id, int seller_id) {
     // 4. Unlock Item
     unlock_record(fd, offset, sizeof(Item));
     close(fd);
+
+    char log_msg[100];
+    sprintf(log_msg, "Auction closed for Item %d. Winner: %d, Amount: %d", item_id, item.current_winner_id, item.current_bid);
+    write_log(log_msg);
     
     return trans_status; // 1 = Success, -2 = Low Balance
 }
