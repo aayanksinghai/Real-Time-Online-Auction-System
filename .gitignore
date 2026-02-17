@@ -2,13 +2,15 @@
 *.o
 *.obj
 
-# Executables
+# Executables (Specific to your Makefile)
+server
+client
+
+# Standard Executables
 *.exe
 *.out
 *.app
-# Executables without extension (common in Linux/macOS)
-*~
-[a.out] # A common default executable name
+a.out
 
 # Libraries
 *.lib
@@ -22,4 +24,5 @@
 *.pdb
 *.su
 
-*/data/
+# Data directory (Corrected)
+data/
