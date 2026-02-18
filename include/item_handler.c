@@ -156,9 +156,11 @@ int close_auction(int item_id, int seller_id) {
         unlock_record(fd, offset, sizeof(Item)); close(fd); return -3; 
     }
     
-    // Logic handles manual close, but auto-close is preferred now
+    // Auto-Close Logic handles no-bids, but we handle manual here:
     if (item.current_winner_id == -1) {
-        item.status = ITEM_SOLD; 
+        item.status = ITEM_SOLD;
+        item.end_time = time(NULL); // <--- FORCE TIMER TO END NOW
+        
         lseek(fd, offset, SEEK_SET); write(fd, &item, sizeof(Item));
         unlock_record(fd, offset, sizeof(Item)); close(fd);
         return 0; 
@@ -168,6 +170,8 @@ int close_auction(int item_id, int seller_id) {
     
     if (trans_status == 1) {
         item.status = ITEM_SOLD;
+        item.end_time = time(NULL); // <--- FORCE TIMER TO END NOW
+        
         lseek(fd, offset, SEEK_SET);
         write(fd, &item, sizeof(Item));
     }
@@ -176,7 +180,7 @@ int close_auction(int item_id, int seller_id) {
     close(fd);
 
     char log_msg[100];
-    sprintf(log_msg, "Auction closed for Item %d. Winner: %d, Amount: %d", item_id, item.current_winner_id, item.current_bid);
+    sprintf(log_msg, "Auction closed manually for Item %d.", item_id);
     write_log(log_msg);
     
     return trans_status; 

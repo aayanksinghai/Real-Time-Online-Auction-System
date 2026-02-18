@@ -101,14 +101,14 @@ int main() {
                         send(sock, &req, sizeof(Request), 0);
                         recv_all(sock, &res, sizeof(Response));
                         printf("Server: %s\n", res.message);
-                    }
+                    }   
                     else if (menu_choice == 2) { // View Items
                         req.operation = OP_LIST_ITEMS;
                         send(sock, &req, sizeof(Request), 0);
                         recv_all(sock, &res, sizeof(Response));
                         int count = atoi(res.message);
                         
-                        printf("\nFound %d Active Auctions:\n", count);
+                        printf("\nFound %d Auctions:\n", count);
                         printf("%-5s %-20s %-10s %-15s %-15s\n", "ID", "Name", "Price", "High Bidder", "Time Left");
                         printf("----------------------------------------------------------------------\n");
                         
@@ -118,15 +118,16 @@ int main() {
                         for(int i=0; i<count; i++) {
                             recv_all(sock, &item, sizeof(Item));
                             
-                            // Calculate remaining time
-                            int seconds_left = (int)difftime(item.end_time, now);
                             char time_str[20];
-                            if (seconds_left > 0) {
+                            int seconds_left = (int)difftime(item.end_time, now);
+
+                            // Logic: If status is SOLD or Time is <= 0, it has Ended.
+                            if (item.status == ITEM_SOLD || seconds_left <= 0) {
+                                strcpy(time_str, "Ended");
+                            } else {
                                 int min = seconds_left / 60;
                                 int sec = seconds_left % 60;
                                 sprintf(time_str, "%dm %ds", min, sec);
-                            } else {
-                                strcpy(time_str, "Ended");
                             }
 
                             printf("%-5d %-20s %-10d %-15d %-15s\n", 
