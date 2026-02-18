@@ -191,7 +191,7 @@ void *client_handler(void *socket_desc) {
                 for(int i=0; i<my_count; i++) {
                     send(sock, &my_items[i], sizeof(Item), 0);
                 }
-                break;
+                continue;
         }
         send(sock, &res, sizeof(Response), 0);
     }

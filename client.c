@@ -107,16 +107,29 @@ int main() {
                         send(sock, &req, sizeof(Request), 0);
                         
                         // Read Count
-                        recv_all(sock, &res, sizeof(Response));
+                        // Note: Using recv directly is risky (as discussed before), 
+                        // but keeping your current style:
+                        recv(sock, &res, sizeof(Response), 0); 
                         int count = atoi(res.message);
+                        
                         printf("\nFound %d Active Auctions:\n", count);
-                        printf("ID\tName\t\tPrice\tHighest Bidder\n");
-                        printf("----------------------------------------------------\n");
+                        
+                        // 1. HEADER: Use fixed widths
+                        // %-5s  = Left-align string, 5 chars wide
+                        // %-20s = Left-align string, 20 chars wide
+                        printf("%-5s %-20s %-10s %-15s\n", "ID", "Name", "Price", "Highest Bidder");
+                        printf("------------------------------------------------------------\n");
                         
                         Item item;
                         for(int i=0; i<count; i++) {
-                            recv_all(sock, &item, sizeof(Item));
-                            printf("%d\t%s\t\t%d\t%d\n", item.id, item.name, item.current_bid, item.current_winner_id);
+                            recv(sock, &item, sizeof(Item), 0);
+                            
+                            // 2. ROW: Use matching widths for variables
+                            printf("%-5d %-20s %-10d %-15d\n", 
+                                   item.id, 
+                                   item.name, 
+                                   item.current_bid, 
+                                   item.current_winner_id);
                         }
                     }
                     else if (menu_choice == 3) {
@@ -160,12 +173,24 @@ int main() {
                         int count = atoi(res.message);
                         
                         printf("\n--- ITEMS YOU ARE WINNING (%d) ---\n", count);
-                        if (count == 0) printf("You have no active bids.\n");
+                        
+                        if (count > 0) {
+                            // 1. HEADER: Fixed width columns
+                            printf("%-5s %-20s %-15s\n", "ID", "Name", "Current Bid");
+                            printf("------------------------------------------\n");
+                        } else {
+                            printf("You have no active bids.\n");
+                        }
                         
                         Item item;
                         for(int i=0; i<count; i++) {
                             recv_all(sock, &item, sizeof(Item));
-                            printf("ID: %d | %s | Current Bid: $%d\n", item.id, item.name, item.current_bid);
+                            
+                            // 2. ROW: Matching fixed widths
+                            printf("%-5d %-20s %-15d\n", 
+                                   item.id, 
+                                   item.name, 
+                                   item.current_bid);
                         }
                     }
                     else if (menu_choice == 7) {
