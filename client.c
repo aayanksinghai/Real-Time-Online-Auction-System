@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <time.h>
 #include "include/common.h"
 
 void clear_input() { while (getchar() != '\n'); }
@@ -86,50 +87,50 @@ int main() {
                     scanf("%d", &menu_choice);
                     clear_input();
 
-                    if (menu_choice == 1) {
+                    if (menu_choice == 1) { // Create Item
                         req.operation = OP_CREATE_ITEM;
-                        char name[50], desc[100], date[20];
-                        int price;
+                        char name[50], desc[100];
+                        int price, duration;
                         
-                        printf("Item Name: "); scanf("%[^\n]", name); clear_input();
-                        printf("Description: "); scanf("%[^\n]", desc); clear_input();
+                        printf("Item Name: "); scanf(" %[^\n]", name); clear_input();
+                        printf("Description: "); scanf(" %[^\n]", desc); clear_input();
                         printf("Base Price: "); scanf("%d", &price); clear_input();
-                        printf("End Date (YYYY-MM-DD): "); scanf("%s", date); clear_input();
+                        printf("Duration (in minutes): "); scanf("%d", &duration); clear_input();
                         
-                        // Pack into payload
-                        sprintf(req.payload, "%s|%s|%d|%s", name, desc, price, date);
+                        sprintf(req.payload, "%s|%s|%d|%d", name, desc, price, duration);            
                         send(sock, &req, sizeof(Request), 0);
                         recv_all(sock, &res, sizeof(Response));
                         printf("Server: %s\n", res.message);
                     }
-                    else if (menu_choice == 2) {
+                    else if (menu_choice == 2) { // View Items
                         req.operation = OP_LIST_ITEMS;
                         send(sock, &req, sizeof(Request), 0);
-                        
-                        // Read Count
-                        // Note: Using recv directly is risky (as discussed before), 
-                        // but keeping your current style:
-                        recv(sock, &res, sizeof(Response), 0); 
+                        recv_all(sock, &res, sizeof(Response));
                         int count = atoi(res.message);
                         
                         printf("\nFound %d Active Auctions:\n", count);
-                        
-                        // 1. HEADER: Use fixed widths
-                        // %-5s  = Left-align string, 5 chars wide
-                        // %-20s = Left-align string, 20 chars wide
-                        printf("%-5s %-20s %-10s %-15s\n", "ID", "Name", "Price", "Highest Bidder");
-                        printf("------------------------------------------------------------\n");
+                        printf("%-5s %-20s %-10s %-15s %-15s\n", "ID", "Name", "Price", "High Bidder", "Time Left");
+                        printf("----------------------------------------------------------------------\n");
                         
                         Item item;
+                        time_t now = time(NULL);
+
                         for(int i=0; i<count; i++) {
-                            recv(sock, &item, sizeof(Item), 0);
+                            recv_all(sock, &item, sizeof(Item));
                             
-                            // 2. ROW: Use matching widths for variables
-                            printf("%-5d %-20s %-10d %-15d\n", 
-                                   item.id, 
-                                   item.name, 
-                                   item.current_bid, 
-                                   item.current_winner_id);
+                            // Calculate remaining time
+                            int seconds_left = (int)difftime(item.end_time, now);
+                            char time_str[20];
+                            if (seconds_left > 0) {
+                                int min = seconds_left / 60;
+                                int sec = seconds_left % 60;
+                                sprintf(time_str, "%dm %ds", min, sec);
+                            } else {
+                                strcpy(time_str, "Ended");
+                            }
+
+                            printf("%-5d %-20s %-10d %-15d %-15s\n", 
+                                   item.id, item.name, item.current_bid, item.current_winner_id, time_str);
                         }
                     }
                     else if (menu_choice == 3) {

@@ -43,7 +43,7 @@ typedef struct {
     int current_winner_id;  // Who has the highest bid (-1 if none)
     int base_price;
     int current_bid;        // Current highest price
-    char end_date[20];
+    time_t end_time;        // Auction end time
     int status;             // ITEM_ACTIVE or ITEM_SOLD
 } Item;
 

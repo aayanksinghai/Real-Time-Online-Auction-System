@@ -13,12 +13,22 @@
 
 int register_user(char *username, char *password, int role);
 int authenticate_user(char *username, char *password);
-int create_item(char *name, char *desc, int base_price, char *date, int seller_id);
+int create_item(char *name, char *desc, int base_price, int duration_minutes, int seller_id);
 int get_all_items(Item *buffer, int max_items);
 int place_bid(int item_id, int user_id, int bid_amount);
 int get_user_balance(int user_id);
 int close_auction(int item_id, int seller_id);
 int get_my_bids(int user_id, Item *buffer, int max_items);
+void check_expired_items(); // defined in item_handler.c
+
+// MONITOR THREAD
+void *auction_monitor_thread(void *arg) {
+    while(1) {
+        check_expired_items();
+        sleep(1); // Check every 1 second
+    }
+    return NULL;
+}
 
 int recv_all(int sock, void *buffer, size_t length) {
     size_t total_received = 0;
@@ -82,13 +92,13 @@ void *client_handler(void *socket_desc) {
 
             case OP_CREATE_ITEM:
                 printf("User %d listing item: %s\n", my_user_id, req.payload); 
-                // Client sends "Name|Desc|Price|Date" string in payload
                 
-                char i_name[50], i_desc[100], i_date[20];
-                int i_price;
-                sscanf(req.payload, "%[^|]|%[^|]|%d|%s", i_name, i_desc, &i_price, i_date);
+                char i_name[50], i_desc[100];
+                int i_price, i_duration;
+                // Parse duration instead of date string
+                sscanf(req.payload, "%[^|]|%[^|]|%d|%d", i_name, i_desc, &i_price, &i_duration);
                 
-                int item_id = create_item(i_name, i_desc, i_price, i_date, my_user_id);
+                int item_id = create_item(i_name, i_desc, i_price, i_duration, my_user_id);
                 
                 if (item_id > 0) {
                     res.operation = OP_SUCCESS;
@@ -226,6 +236,11 @@ int main() {
             perror("Listen failed"); 
             exit(EXIT_FAILURE); 
         }
+    
+    // START MONITOR THREAD
+    pthread_t monitor_tid;
+    pthread_create(&monitor_tid, NULL, auction_monitor_thread, NULL);
+    pthread_detach(monitor_tid); // Run in background
     
     printf("Auction Server running on port %d\n", PORT);
     while (1) {
