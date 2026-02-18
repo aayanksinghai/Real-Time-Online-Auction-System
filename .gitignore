@@ -26,3 +26,6 @@ a.out
 
 # Data directory (Corrected)
 data/
+
+extensions.txt
+server.log

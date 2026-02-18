@@ -7,6 +7,17 @@
 
 void clear_input() { while (getchar() != '\n'); }
 
+int recv_all(int sock, void *buffer, size_t length) {
+    size_t total_received = 0;
+    char *ptr = (char *)buffer;
+    while (total_received < length) {
+        ssize_t received = recv(sock, ptr + total_received, length - total_received, 0);
+        if (received <= 0) return received;
+        total_received += received;
+    }
+    return total_received;
+}
+
 int main() {
     int sock = 0;
     struct sockaddr_in serv_addr;
@@ -38,7 +49,7 @@ int main() {
             printf("Enter Username: "); scanf("%s", req.username);
             printf("Enter Password: "); scanf("%s", req.password);
             send(sock, &req, sizeof(Request), 0);
-            recv(sock, &res, sizeof(Response), 0);
+            recv_all(sock, &res, sizeof(Response));
             printf("Server: %s\n", res.message);
         }
         else if (choice == 2) {
@@ -47,7 +58,7 @@ int main() {
             printf("Enter Password: "); scanf("%s", req.password);
             send(sock, &req, sizeof(Request), 0);
             
-            recv(sock, &res, sizeof(Response), 0);
+            recv_all(sock, &res, sizeof(Response));
             printf("Server: %s\n", res.message);
             
             if (res.operation == OP_SUCCESS) {
@@ -60,7 +71,8 @@ int main() {
                     printf("3. Place Bid\n");
                     printf("4. Close Auction (Seller)\n");
                     printf("5. Check Balance\n");
-                    printf("6. Logout\n");
+                    printf("6. My Active Bid\n");
+                    printf("7. Logout\n");
                     printf("Enter choice: ");
                     int menu_choice;
                     scanf("%d", &menu_choice);
@@ -79,7 +91,7 @@ int main() {
                         // Pack into payload
                         sprintf(req.payload, "%s|%s|%d|%s", name, desc, price, date);
                         send(sock, &req, sizeof(Request), 0);
-                        recv(sock, &res, sizeof(Response), 0);
+                        recv_all(sock, &res, sizeof(Response));
                         printf("Server: %s\n", res.message);
                     }
                     else if (menu_choice == 2) {
@@ -87,7 +99,7 @@ int main() {
                         send(sock, &req, sizeof(Request), 0);
                         
                         // Read Count
-                        recv(sock, &res, sizeof(Response), 0);
+                        recv_all(sock, &res, sizeof(Response));
                         int count = atoi(res.message);
                         printf("\nFound %d Active Auctions:\n", count);
                         printf("ID\tName\t\tPrice\tHighest Bidder\n");
@@ -95,7 +107,7 @@ int main() {
                         
                         Item item;
                         for(int i=0; i<count; i++) {
-                            recv(sock, &item, sizeof(Item), 0);
+                            recv_all(sock, &item, sizeof(Item));
                             printf("%d\t%s\t\t%d\t%d\n", item.id, item.name, item.current_bid, item.current_winner_id);
                         }
                     }
@@ -112,7 +124,7 @@ int main() {
                         sprintf(req.payload, "%d|%d", item_id, amount);
                         send(sock, &req, sizeof(Request), 0);
                         
-                        recv(sock, &res, sizeof(Response), 0);
+                        recv_all(sock, &res, sizeof(Response));
                         printf("Server: %s\n", res.message);
                     }
                     else if (menu_choice == 4) {
@@ -122,17 +134,33 @@ int main() {
                         scanf("%d", &cid);
                         sprintf(req.payload, "%d", cid);
                         send(sock, &req, sizeof(Request), 0);
-                        recv(sock, &res, sizeof(Response), 0);
+                        recv_all(sock, &res, sizeof(Response));
                         printf("Server: %s\n", res.message);
                     }
                     else if (menu_choice == 5) {
                         req.operation = OP_VIEW_BALANCE;
                         // No payload needed, server knows ID from session
                         send(sock, &req, sizeof(Request), 0);
-                        recv(sock, &res, sizeof(Response), 0);
+                        recv_all(sock, &res, sizeof(Response));
                         printf("Server: %s\n", res.message);
                     }
-                    else if (menu_choice == 6) {
+                    else if (menu_choice == 6) { // My Active Bids
+                        req.operation = OP_MY_BIDS;
+                        send(sock, &req, sizeof(Request), 0);
+                        
+                        recv_all(sock, &res, sizeof(Response));
+                        int count = atoi(res.message);
+                        
+                        printf("\n--- ITEMS YOU ARE WINNING (%d) ---\n", count);
+                        if (count == 0) printf("You have no active bids.\n");
+                        
+                        Item item;
+                        for(int i=0; i<count; i++) {
+                            recv_all(sock, &item, sizeof(Item));
+                            printf("ID: %d | %s | Current Bid: $%d\n", item.id, item.name, item.current_bid);
+                        }
+                    }
+                    else if (menu_choice == 7) {
                         req.operation = OP_EXIT;
                         send(sock, &req, sizeof(Request), 0);
                         logged_in = 0;

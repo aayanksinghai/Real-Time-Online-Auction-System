@@ -141,8 +141,15 @@ int place_bid(int item_id, int user_id, int bid_amount) {
     item.current_winner_id = user_id;
     
     // 6. Write Back
-    lseek(fd, offset, SEEK_SET); // Move pointer back to start of record
-    write(fd, &item, sizeof(Item));
+    lseek(fd, offset, SEEK_SET);
+    if (write(fd, &item, sizeof(Item)) != sizeof(Item)) {
+        // Critical Error: Write failed (Disk full? Corruption?)
+        perror("Write failed in place_bid");
+        lock.l_type = F_UNLCK;
+        fcntl(fd, F_SETLKW, &lock);
+        close(fd);
+        return -1;
+    }
 
     lock.l_type = F_UNLCK;
     fcntl(fd, F_SETLKW, &lock);
@@ -203,4 +210,28 @@ int close_auction(int item_id, int seller_id) {
     write_log(log_msg);
     
     return trans_status; // 1 = Success, -2 = Low Balance
+}
+
+// Returns number of items found where user is the highest bidder
+int get_my_bids(int user_id, Item *buffer, int max_items) {
+    int fd = open(ITEM_FILE, O_RDONLY);
+    if (fd == -1) return 0;
+
+    // Shared Lock
+    if (lock_record(fd, F_RDLCK, 0, 0) == -1) { // 0,0 = Lock Whole File (simpler for scanning)
+        close(fd); return 0;
+    }
+
+    Item item;
+    int count = 0;
+    while(read(fd, &item, sizeof(Item)) > 0 && count < max_items) {
+        if (item.current_winner_id == user_id && item.status == ITEM_ACTIVE) {
+            buffer[count++] = item;
+        }
+    }
+
+    // Unlock
+    unlock_record(fd, 0, 0);
+    close(fd);
+    return count;
 }

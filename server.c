@@ -17,6 +17,19 @@ int create_item(char *name, char *desc, int base_price, char *date, int seller_i
 int get_all_items(Item *buffer, int max_items);
 int place_bid(int item_id, int user_id, int bid_amount);
 int get_user_balance(int user_id);
+int close_auction(int item_id, int seller_id);
+int get_my_bids(int user_id, Item *buffer, int max_items);
+
+int recv_all(int sock, void *buffer, size_t length) {
+    size_t total_received = 0;
+    char *ptr = (char *)buffer;
+    while (total_received < length) {
+        ssize_t received = recv(sock, ptr + total_received, length - total_received, 0);
+        if (received <= 0) return received; // Error or closed
+        total_received += received;
+    }
+    return total_received;
+}
 
 void *client_handler(void *socket_desc) {
     int sock = *(int*)socket_desc;
@@ -26,7 +39,7 @@ void *client_handler(void *socket_desc) {
     Response res;
     int my_user_id = -1;
 
-    while(recv(sock, &req, sizeof(Request), 0) > 0) {
+    while(recv_all(sock, &req, sizeof(Request)) > 0) {
         memset(&res, 0, sizeof(Response));
         
         switch(req.operation) {
@@ -161,6 +174,19 @@ void *client_handler(void *socket_desc) {
                 } else {
                     res.operation = OP_ERROR;
                     strcpy(res.message, "Error retrieving balance.");
+                }
+                break;
+
+            case OP_MY_BIDS:
+                Item my_items[50];
+                int my_count = get_my_bids(my_user_id, my_items, 50);
+                
+                res.operation = OP_SUCCESS;
+                sprintf(res.message, "%d", my_count);
+                send(sock, &res, sizeof(Response), 0);
+                
+                for(int i=0; i<my_count; i++) {
+                    send(sock, &my_items[i], sizeof(Item), 0);
                 }
                 break;
         }
