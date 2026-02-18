@@ -116,9 +116,12 @@ void *client_handler(void *socket_desc) {
                 continue; // Skip the default send at bottom since we already sent response
 
             case OP_EXIT:
-                if (my_user_id != -1) remove_session(my_user_id);
-                close(sock);
-                return NULL;
+                printf("User %d logged out.\n", my_user_id);
+                if (my_user_id != -1) {
+                    remove_session(my_user_id);
+                    my_user_id = -1; // Reset local ID
+                }
+                continue;
 
             case OP_BID:
                 int b_item_id, b_amount;

@@ -56,9 +56,17 @@ int main() {
             req.operation = OP_LOGIN;
             printf("Enter Username: "); scanf("%s", req.username);
             printf("Enter Password: "); scanf("%s", req.password);
-            send(sock, &req, sizeof(Request), 0);
+            if (send(sock, &req, sizeof(Request), 0) < 0) {
+                printf("Error: Send failed.\n");
+                break;
+            }
             
-            recv_all(sock, &res, sizeof(Response));
+            int bytes_received = recv(sock, &res, sizeof(Response), 0);
+            if (bytes_received <= 0) {
+                printf("Error: Connection lost with server.\n");
+                close(sock);
+                return -1; // Exit or handle reconnection
+            }
             printf("Server: %s\n", res.message);
             
             if (res.operation == OP_SUCCESS) {
