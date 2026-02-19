@@ -11,6 +11,7 @@
 #define ITEM_FILE "data/items.dat"
 
 extern int transfer_funds(int from_user_id, int to_user_id, int amount);
+extern int get_user_balance(int user_id);
 
 int get_next_item_id(int fd) {
     long size = lseek(fd, 0, SEEK_END);
@@ -127,6 +128,11 @@ int place_bid(int item_id, int user_id, int bid_amount) {
     if (bid_amount <= item.current_bid) {
         lock.l_type = F_UNLCK; fcntl(fd, F_SETLKW, &lock); close(fd);
         return -3; 
+    }
+
+    if (get_user_balance(user_id) < bid_amount) {
+        lock.l_type = F_UNLCK; fcntl(fd, F_SETLKW, &lock); close(fd);
+        return -6; // Code -6 means Insufficient Funds
     }
 
     item.current_bid = bid_amount;

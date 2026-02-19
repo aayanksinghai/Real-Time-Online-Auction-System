@@ -25,7 +25,7 @@ int get_next_user_id() {
     return max_id + 1;
 }
 
-int register_user(char *username, char *password, int role) {
+int register_user(char *username, char *password, int role, int initial_balance) {
     int fd = open(USER_FILE, O_RDWR | O_CREAT, 0666);
     if (fd == -1) {
         perror("Open Error");
@@ -64,7 +64,7 @@ int register_user(char *username, char *password, int role) {
     strcpy(new_user.username, username);
     strcpy(new_user.password, password);
     new_user.role = role;
-    new_user.balance = 10000; //For testing (Initial Money)
+    new_user.balance = initial_balance;
 
     write(fd, &new_user, sizeof(User));
 

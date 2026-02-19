@@ -47,8 +47,15 @@ int main() {
 
         if (choice == 1) {
             req.operation = OP_REGISTER;
+            int initial_balance = 0;
+            
             printf("Enter Username: "); scanf("%s", req.username);
             printf("Enter Password: "); scanf("%s", req.password);
+            printf("Enter Initial Balance: "); scanf("%d", &initial_balance);
+            
+            // Send the balance in the payload
+            sprintf(req.payload, "%d", initial_balance);
+            
             send(sock, &req, sizeof(Request), 0);
             recv_all(sock, &res, sizeof(Response));
             printf("Server: %s\n", res.message);

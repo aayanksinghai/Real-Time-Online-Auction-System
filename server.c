@@ -11,7 +11,7 @@
 
 #define PORT 8085
 
-int register_user(char *username, char *password, int role);
+int register_user(char *username, char *password, int role, int initial_balance);
 int authenticate_user(char *username, char *password);
 int create_item(char *name, char *desc, int base_price, int duration_minutes, int seller_id);
 int get_all_items(Item *buffer, int max_items);
@@ -56,7 +56,12 @@ void *client_handler(void *socket_desc) {
             case OP_REGISTER:
                 printf("Register request: %s\n", req.username);
                 
-                int reg_status = register_user(req.username, req.password, ROLE_USER);
+                // Read balance from payload
+                int init_bal = atoi(req.payload);
+                
+                // Pass it to the registration function
+                int reg_status = register_user(req.username, req.password, ROLE_USER, init_bal);
+                
                 if (reg_status > 0) {
                     res.operation = OP_SUCCESS;
                     strcpy(res.message, "Registration Successful! Please Login.");
@@ -160,7 +165,10 @@ void *client_handler(void *socket_desc) {
                 } else if (result == -5) {
                     res.operation = OP_ERROR;
                     sprintf(res.message, "Bid Failed: You cannot bid on your own listed item.");
-                } else {
+                } else if (result == -6) {
+                    res.operation = OP_ERROR;
+                    sprintf(res.message, "Bid Failed: Insufficient balance to place this bid.");
+                }else {
                     res.operation = OP_ERROR;
                     sprintf(res.message, "Bid Failed: System Error or Invalid ID.");
                 }
