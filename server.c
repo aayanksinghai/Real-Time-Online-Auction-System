@@ -157,6 +157,9 @@ void *client_handler(void *socket_desc) {
                 } else if (result == -4) {
                     res.operation = OP_ERROR;
                     sprintf(res.message, "Bid Failed: Auction is closed.");
+                } else if (result == -5) {
+                    res.operation = OP_ERROR;
+                    sprintf(res.message, "Bid Failed: You cannot bid on your own listed item.");
                 } else {
                     res.operation = OP_ERROR;
                     sprintf(res.message, "Bid Failed: System Error or Invalid ID.");

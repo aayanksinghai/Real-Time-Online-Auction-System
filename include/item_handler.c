@@ -108,6 +108,11 @@ int place_bid(int item_id, int user_id, int bid_amount) {
         return -2; 
     }
 
+    if (item.seller_id == user_id) {
+        lock.l_type = F_UNLCK; fcntl(fd, F_SETLKW, &lock); close(fd);
+        return -5; // Cannot bid on your own item
+    }
+
     if (item.status != ITEM_ACTIVE) {
         lock.l_type = F_UNLCK; fcntl(fd, F_SETLKW, &lock); close(fd);
         return -4; 
