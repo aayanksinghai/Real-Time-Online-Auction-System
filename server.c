@@ -79,6 +79,9 @@ void *client_handler(void *socket_desc) {
                         res.operation = OP_SUCCESS;
                         res.session_id = session_status;
                         sprintf(res.message, "Welcome User ID %d", user_id);
+                        char log_msg[150];
+                        sprintf(log_msg, "User %d %s successfully logged in.", my_user_id, req.username);
+                        write_log(log_msg);
                     } else {
                         res.operation = OP_ERROR;
                         strcpy(res.message, "User already logged in.");
@@ -128,6 +131,9 @@ void *client_handler(void *socket_desc) {
             case OP_EXIT:
                 printf("User %d logged out.\n", my_user_id);
                 if (my_user_id != -1) {
+                    char log_msg[150];
+                    sprintf(log_msg, "User %d %s successfully logged out.", my_user_id, req.username);
+                    write_log(log_msg);
                     remove_session(my_user_id);
                     my_user_id = -1; // Reset local ID
                 }

@@ -50,6 +50,14 @@ int create_item(char *name, char *desc, int base_price, int duration_minutes, in
     lock.l_type = F_UNLCK;
     fcntl(fd, F_SETLKW, &lock);
     close(fd);
+
+    char seller_name[50];
+    get_username(seller_id, seller_name); // Use the helper
+    
+    char log_msg[150];
+    sprintf(log_msg, "Seller %d (%s) listed a new item: %s (ID: %d)", 
+            seller_id, seller_name, name, new_item.id);
+    write_log(log_msg);
     
     return new_item.id;
 }
@@ -129,8 +137,12 @@ int place_bid(int item_id, int user_id, int bid_amount) {
     fcntl(fd, F_SETLKW, &lock);
     close(fd);
 
-    char log_msg[100];
-    sprintf(log_msg, "User %d placed bid %d on Item %d", user_id, bid_amount, item_id);
+    char bidder_name[50];
+    get_username(user_id, bidder_name); // Use the helper
+    
+    char log_msg[200];
+    sprintf(log_msg, "User %d (%s) placed bid $%d on Item %d (%s)", 
+            user_id, bidder_name, bid_amount, item_id, item.name);
     write_log(log_msg);
     return 1;
 }
@@ -179,8 +191,17 @@ int close_auction(int item_id, int seller_id) {
     unlock_record(fd, offset, sizeof(Item));
     close(fd);
 
-    char log_msg[100];
-    sprintf(log_msg, "Auction closed manually for Item %d.", item_id);
+    char log_msg[200];
+    if (item.current_winner_id == -1) {
+        sprintf(log_msg, "Auction concluded manually for Item %d (%s) - No Bids.", 
+                item_id, item.name);
+    } else {
+        char winner_name[50];
+        get_username(item.current_winner_id, winner_name); // Fetch winner's name
+        
+        sprintf(log_msg, "Auction concluded manually for Item %d (%s). Winner: %d (%s), Final Bid: $%d", 
+                item_id, item.name, item.current_winner_id, winner_name, item.current_bid);
+    }
     write_log(log_msg);
     
     return trans_status; 

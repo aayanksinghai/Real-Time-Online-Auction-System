@@ -62,4 +62,6 @@ typedef struct {
     int session_id; // Assigned by server on login
 } Response;
 
+void get_username(int user_id, char *buffer);
+
 #endif

@@ -159,12 +159,20 @@ int transfer_funds(int from_user_id, int to_user_id, int amount) {
     User *payer = (u1.id == from_user_id) ? &u1 : &u2;
     User *payee = (u1.id == to_user_id) ? &u1 : &u2;
 
+    char log_msg[200];
+    sprintf(log_msg, "Transaction in progress: User %d (%s) transferring $%d to User %d (%s)", 
+            from_user_id, payer->username, amount, to_user_id, payee->username);
+    write_log(log_msg);
+
     // 5. Check Balance
     if (payer->balance < amount) {
         // Insufficient funds
         unlock_record(fd, offset2, sizeof(User));
         unlock_record(fd, offset1, sizeof(User));
         close(fd);
+        sprintf(log_msg, "Transaction failed: User %d (%s) has insufficient funds.", 
+                from_user_id, payer->username);
+        write_log(log_msg);
         return -2;
     }
 
@@ -181,5 +189,24 @@ int transfer_funds(int from_user_id, int to_user_id, int amount) {
     unlock_record(fd, offset1, sizeof(User));
     
     close(fd);
+    sprintf(log_msg, "Transaction successful: User %d (%s) transferred $%d to User %d (%s)", 
+            from_user_id, payer->username, amount, to_user_id, payee->username);
+    write_log(log_msg);
     return 1;
+}
+
+void get_username(int user_id, char *buffer) {
+    strcpy(buffer, "Unknown"); // Default fallback
+    if (user_id <= 0) return;
+    
+    int fd = open(USER_FILE, O_RDONLY);
+    if (fd == -1) return;
+
+    User u;
+    // Jump directly to the user's record
+    lseek(fd, (user_id - 1) * sizeof(User), SEEK_SET);
+    if (read(fd, &u, sizeof(User)) > 0) {
+        strcpy(buffer, u.username); // Copy name to buffer
+    }
+    close(fd);
 }
