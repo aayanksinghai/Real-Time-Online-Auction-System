@@ -20,6 +20,7 @@ int get_user_balance(int user_id);
 int close_auction(int item_id, int seller_id);
 int get_my_bids(int user_id, Item *buffer, int max_items);
 int get_transaction_history(int user_id, Item *buffer, int max_items);
+int is_user_seller(int user_id);
 void check_expired_items();
 
 // MONITOR THREAD
@@ -233,6 +234,12 @@ void *client_handler(void *socket_desc) {
                     send(sock, &hist_items[i], sizeof(Item), 0);
                 }
                 continue;
+            
+            case OP_CHECK_SELLER:
+                int seller_status = is_user_seller(my_user_id);
+                res.operation = OP_SUCCESS;
+                sprintf(res.message, "%d", seller_status);
+                break;
         }
         send(sock, &res, sizeof(Response), 0);
     }

@@ -305,3 +305,26 @@ int get_transaction_history(int user_id, Item *buffer, int max_items) {
     close(fd);
     return count;
 }
+
+int is_user_seller(int user_id) {
+    int fd = open(ITEM_FILE, O_RDONLY);
+    if (fd == -1) return 0;
+
+    // Shared lock for reading
+    if (lock_record(fd, F_RDLCK, 0, 0) == -1) {
+        close(fd); return 0;
+    }
+
+    Item item;
+    int found = 0;
+    while(read(fd, &item, sizeof(Item)) > 0) {
+        if (item.seller_id == user_id) {
+            found = 1;
+            break; // We only need to find one item to prove they are a seller
+        }
+    }
+
+    unlock_record(fd, 0, 0);
+    close(fd);
+    return found;
+}

@@ -83,21 +83,41 @@ int main() {
                 // --- ENTERING AUCTION MENU LOOP ---
                 int logged_in = 1;
                 while(logged_in) {
+                    // 1. Check if user is a seller before printing the menu
+                    memset(&req, 0, sizeof(Request));
+                    req.operation = OP_CHECK_SELLER;
+                    send(sock, &req, sizeof(Request), 0);
+                    recv_all(sock, &res, sizeof(Response));
+                    int is_seller = atoi(res.message);
+
+                    // 2. Define dynamic menu numbers
+                    int opt_close  = is_seller ? 4 : -1;
+                    int opt_bal    = is_seller ? 5 : 4;
+                    int opt_mybids = is_seller ? 6 : 5;
+                    int opt_hist   = is_seller ? 7 : 6;
+                    int opt_logout = is_seller ? 8 : 7;
+
+                    // 3. Print Dynamic Menu
                     printf("\n--- AUCTION MENU ---\n");
                     printf("1. List New Item (Sell)\n");
                     printf("2. View All Items (Buy)\n");
                     printf("3. Place Bid\n");
-                    printf("4. Close Auction (Seller)\n");
-                    printf("5. Check Balance\n");
-                    printf("6. My Active Bid\n");
-                    printf("7. Transaction History\n");
-                    printf("8. Logout\n");
+                    if (is_seller) {
+                        printf("%d. Close Auction (Seller)\n", opt_close);
+                    }
+                    printf("%d. Check Balance\n", opt_bal);
+                    printf("%d. My Active Bid\n", opt_mybids);
+                    printf("%d. Transaction History\n", opt_hist);
+                    printf("%d. Logout\n", opt_logout);
                     printf("Enter choice: ");
+                    
                     int menu_choice;
                     scanf("%d", &menu_choice);
                     clear_input();
+                    
+                    memset(&req, 0, sizeof(Request)); // Reset req for next operations
 
-                    if (menu_choice == 1) { // Create Item
+                    if (menu_choice == 1) {
                         req.operation = OP_CREATE_ITEM;
                         char name[50], desc[100];
                         int price, duration;
@@ -107,12 +127,12 @@ int main() {
                         printf("Base Price: "); scanf("%d", &price); clear_input();
                         printf("Duration (in minutes): "); scanf("%d", &duration); clear_input();
                         
-                        sprintf(req.payload, "%s|%s|%d|%d", name, desc, price, duration);            
+                        sprintf(req.payload, "%s|%s|%d|%d", name, desc, price, duration);
                         send(sock, &req, sizeof(Request), 0);
                         recv_all(sock, &res, sizeof(Response));
                         printf("Server: %s\n", res.message);
-                    }   
-                    else if (menu_choice == 2) { // View Items
+                    }
+                    else if (menu_choice == 2) {
                         req.operation = OP_LIST_ITEMS;
                         send(sock, &req, sizeof(Request), 0);
                         recv_all(sock, &res, sizeof(Response));
@@ -131,7 +151,6 @@ int main() {
                             char time_str[20];
                             int seconds_left = (int)difftime(item.end_time, now);
 
-                            // Logic: If status is SOLD or Time is <= 0, it has Ended.
                             if (item.status == ITEM_SOLD || seconds_left <= 0) {
                                 strcpy(time_str, "Ended");
                             } else {
@@ -160,7 +179,7 @@ int main() {
                         recv_all(sock, &res, sizeof(Response));
                         printf("Server: %s\n", res.message);
                     }
-                    else if (menu_choice == 4) {
+                    else if (is_seller && menu_choice == opt_close) {
                         req.operation = OP_CLOSE_AUCTION;
                         printf("Enter Item ID to Close: ");
                         int cid;
@@ -170,14 +189,13 @@ int main() {
                         recv_all(sock, &res, sizeof(Response));
                         printf("Server: %s\n", res.message);
                     }
-                    else if (menu_choice == 5) {
+                    else if (menu_choice == opt_bal) {
                         req.operation = OP_VIEW_BALANCE;
-                        // No payload needed, server knows ID from session
                         send(sock, &req, sizeof(Request), 0);
                         recv_all(sock, &res, sizeof(Response));
                         printf("Server: %s\n", res.message);
                     }
-                    else if (menu_choice == 6) { // My Active Bids
+                    else if (menu_choice == opt_mybids) {
                         req.operation = OP_MY_BIDS;
                         send(sock, &req, sizeof(Request), 0);
                         
@@ -187,7 +205,6 @@ int main() {
                         printf("\n--- ITEMS YOU ARE WINNING (%d) ---\n", count);
                         
                         if (count > 0) {
-                            // 1. HEADER: Fixed width columns
                             printf("%-5s %-20s %-15s\n", "ID", "Name", "Current Bid");
                             printf("------------------------------------------\n");
                         } else {
@@ -197,15 +214,10 @@ int main() {
                         Item item;
                         for(int i=0; i<count; i++) {
                             recv_all(sock, &item, sizeof(Item));
-                            
-                            // 2. ROW: Matching fixed widths
-                            printf("%-5d %-20s %-15d\n", 
-                                   item.id, 
-                                   item.name, 
-                                   item.current_bid);
+                            printf("%-5d %-20s %-15d\n", item.id, item.name, item.current_bid);
                         }
                     }
-                    else if (menu_choice == 7) { // Transaction History
+                    else if (menu_choice == opt_hist) {
                         req.operation = OP_TRANSACTION_HISTORY;
                         send(sock, &req, sizeof(Request), 0);
                         
@@ -216,13 +228,11 @@ int main() {
                         if (count == 0) {
                             printf("No past transactions found.\n");
                         } else {
-                            // Fetch all history items
                             Item hist[50];
                             for(int i=0; i<count; i++) {
                                 recv_all(sock, &hist[i], sizeof(Item));
                             }
                             
-                            // 1. ITEMS SOLD BY USER
                             printf("\n[ ITEMS YOU SOLD ]\n");
                             printf("%-5s %-20s %-15s %-15s\n", "ID", "Name", "Final Price", "Winner ID");
                             printf("-----------------------------------------------------------\n");
@@ -240,7 +250,6 @@ int main() {
                             }
                             if (sold_count == 0) printf("You haven't sold any items yet.\n");
 
-                            // 2. ITEMS WON BY USER
                             printf("\n[ ITEMS YOU WON ]\n");
                             printf("%-5s %-20s %-15s %-15s\n", "ID", "Name", "Winning Bid", "Seller ID");
                             printf("-----------------------------------------------------------\n");
@@ -255,11 +264,14 @@ int main() {
                             if (won_count == 0) printf("You haven't won any items yet.\n");
                         }
                     }
-                    else if (menu_choice == 8) {
+                    else if (menu_choice == opt_logout) {
                         req.operation = OP_EXIT;
                         send(sock, &req, sizeof(Request), 0);
                         logged_in = 0;
                         printf("Logged out.\n");
+                    }
+                    else {
+                        printf("Invalid choice. Please try again.\n");
                     }
                 }
             }
