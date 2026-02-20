@@ -15,6 +15,7 @@
 #define OP_CLOSE_AUCTION 7
 #define OP_VIEW_BALANCE 8
 #define OP_MY_BIDS 9
+#define OP_TRANSACTION_HISTORY 10
 #define OP_SUCCESS 100
 #define OP_ERROR 101
 

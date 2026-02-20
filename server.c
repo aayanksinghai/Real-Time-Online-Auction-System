@@ -19,7 +19,8 @@ int place_bid(int item_id, int user_id, int bid_amount);
 int get_user_balance(int user_id);
 int close_auction(int item_id, int seller_id);
 int get_my_bids(int user_id, Item *buffer, int max_items);
-void check_expired_items(); // defined in item_handler.c
+int get_transaction_history(int user_id, Item *buffer, int max_items);
+void check_expired_items();
 
 // MONITOR THREAD
 void *auction_monitor_thread(void *arg) {
@@ -217,6 +218,19 @@ void *client_handler(void *socket_desc) {
                 
                 for(int i=0; i<my_count; i++) {
                     send(sock, &my_items[i], sizeof(Item), 0);
+                }
+                continue;
+            
+            case OP_TRANSACTION_HISTORY:
+                Item hist_items[50];
+                int hist_count = get_transaction_history(my_user_id, hist_items, 50);
+                
+                res.operation = OP_SUCCESS;
+                sprintf(res.message, "%d", hist_count);
+                send(sock, &res, sizeof(Response), 0);
+                
+                for(int i=0; i<hist_count; i++) {
+                    send(sock, &hist_items[i], sizeof(Item), 0);
                 }
                 continue;
         }

@@ -280,3 +280,28 @@ void check_expired_items() {
     }
     close(fd);
 }
+
+// Returns completed transactions (Items Sold or Items Won)
+int get_transaction_history(int user_id, Item *buffer, int max_items) {
+    int fd = open(ITEM_FILE, O_RDONLY);
+    if (fd == -1) return 0;
+
+    // Shared lock for reading
+    if (lock_record(fd, F_RDLCK, 0, 0) == -1) { 
+        close(fd); return 0;
+    }
+
+    Item item;
+    int count = 0;
+    while(read(fd, &item, sizeof(Item)) > 0 && count < max_items) {
+        // Condition: Item is SOLD and the user is either the Seller or the Winner
+        if (item.status == ITEM_SOLD && 
+           (item.seller_id == user_id || item.current_winner_id == user_id)) {
+            buffer[count++] = item;
+        }
+    }
+
+    unlock_record(fd, 0, 0);
+    close(fd);
+    return count;
+}

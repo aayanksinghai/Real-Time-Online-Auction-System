@@ -78,6 +78,8 @@ int main() {
             printf("Server: %s\n", res.message);
             
             if (res.operation == OP_SUCCESS) {
+                int my_client_id = -1;
+                sscanf(res.message, "Welcome User ID %d", &my_client_id);
                 // --- ENTERING AUCTION MENU LOOP ---
                 int logged_in = 1;
                 while(logged_in) {
@@ -88,7 +90,8 @@ int main() {
                     printf("4. Close Auction (Seller)\n");
                     printf("5. Check Balance\n");
                     printf("6. My Active Bid\n");
-                    printf("7. Logout\n");
+                    printf("7. Transaction History\n");
+                    printf("8. Logout\n");
                     printf("Enter choice: ");
                     int menu_choice;
                     scanf("%d", &menu_choice);
@@ -202,7 +205,57 @@ int main() {
                                    item.current_bid);
                         }
                     }
-                    else if (menu_choice == 7) {
+                    else if (menu_choice == 7) { // Transaction History
+                        req.operation = OP_TRANSACTION_HISTORY;
+                        send(sock, &req, sizeof(Request), 0);
+                        
+                        recv_all(sock, &res, sizeof(Response));
+                        int count = atoi(res.message);
+                        
+                        printf("\n--- TRANSACTION HISTORY ---\n");
+                        if (count == 0) {
+                            printf("No past transactions found.\n");
+                        } else {
+                            // Fetch all history items
+                            Item hist[50];
+                            for(int i=0; i<count; i++) {
+                                recv_all(sock, &hist[i], sizeof(Item));
+                            }
+                            
+                            // 1. ITEMS SOLD BY USER
+                            printf("\n[ ITEMS YOU SOLD ]\n");
+                            printf("%-5s %-20s %-15s %-15s\n", "ID", "Name", "Final Price", "Winner ID");
+                            printf("-----------------------------------------------------------\n");
+                            int sold_count = 0;
+                            for(int i=0; i<count; i++) {
+                                if (hist[i].seller_id == my_client_id) {
+                                    char winner_str[15];
+                                    if (hist[i].current_winner_id == -1) strcpy(winner_str, "None");
+                                    else sprintf(winner_str, "%d", hist[i].current_winner_id);
+                                    
+                                    printf("%-5d %-20s $%-14d %-15s\n", 
+                                           hist[i].id, hist[i].name, hist[i].current_bid, winner_str);
+                                    sold_count++;
+                                }
+                            }
+                            if (sold_count == 0) printf("You haven't sold any items yet.\n");
+
+                            // 2. ITEMS WON BY USER
+                            printf("\n[ ITEMS YOU WON ]\n");
+                            printf("%-5s %-20s %-15s %-15s\n", "ID", "Name", "Winning Bid", "Seller ID");
+                            printf("-----------------------------------------------------------\n");
+                            int won_count = 0;
+                            for(int i=0; i<count; i++) {
+                                if (hist[i].current_winner_id == my_client_id) {
+                                    printf("%-5d %-20s $%-14d %-15d\n", 
+                                           hist[i].id, hist[i].name, hist[i].current_bid, hist[i].seller_id);
+                                    won_count++;
+                                }
+                            }
+                            if (won_count == 0) printf("You haven't won any items yet.\n");
+                        }
+                    }
+                    else if (menu_choice == 8) {
                         req.operation = OP_EXIT;
                         send(sock, &req, sizeof(Request), 0);
                         logged_in = 0;
