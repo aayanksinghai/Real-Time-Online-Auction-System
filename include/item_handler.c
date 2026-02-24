@@ -318,9 +318,9 @@ int is_user_seller(int user_id) {
     Item item;
     int found = 0;
     while(read(fd, &item, sizeof(Item)) > 0) {
-        if (item.seller_id == user_id) {
+        if (item.seller_id == user_id && item.status == ITEM_ACTIVE) {
             found = 1;
-            break; // We only need to find one item to prove they are a seller
+            break; 
         }
     }
 
