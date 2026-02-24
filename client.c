@@ -228,36 +228,35 @@ int main() {
                         if (count == 0) {
                             printf("No past transactions found.\n");
                         } else {
-                            Item hist[50];
+                            // Receive the new HistoryRecord structs
+                            HistoryRecord hist[50];
                             for(int i=0; i<count; i++) {
-                                recv_all(sock, &hist[i], sizeof(Item));
+                                recv_all(sock, &hist[i], sizeof(HistoryRecord));
                             }
                             
                             printf("\n[ ITEMS YOU SOLD ]\n");
-                            printf("%-5s %-20s %-15s %-15s\n", "ID", "Name", "Final Price", "Winner ID");
+                            // Changed column header from Winner ID to Winner
+                            printf("%-5s %-20s %-15s %-15s\n", "ID", "Name", "Final Price", "Winner");
                             printf("-----------------------------------------------------------\n");
                             int sold_count = 0;
                             for(int i=0; i<count; i++) {
                                 if (hist[i].seller_id == my_client_id) {
-                                    char winner_str[15];
-                                    if (hist[i].current_winner_id == -1) strcpy(winner_str, "None");
-                                    else sprintf(winner_str, "%d", hist[i].current_winner_id);
-                                    
                                     printf("%-5d %-20s $%-14d %-15s\n", 
-                                           hist[i].id, hist[i].name, hist[i].current_bid, winner_str);
+                                           hist[i].item_id, hist[i].item_name, hist[i].amount, hist[i].winner_name);
                                     sold_count++;
                                 }
                             }
                             if (sold_count == 0) printf("You haven't sold any items yet.\n");
 
                             printf("\n[ ITEMS YOU WON ]\n");
-                            printf("%-5s %-20s %-15s %-15s\n", "ID", "Name", "Winning Bid", "Seller ID");
+                            // Changed column header from Seller ID to Seller
+                            printf("%-5s %-20s %-15s %-15s\n", "ID", "Name", "Winning Bid", "Seller");
                             printf("-----------------------------------------------------------\n");
                             int won_count = 0;
                             for(int i=0; i<count; i++) {
-                                if (hist[i].current_winner_id == my_client_id) {
-                                    printf("%-5d %-20s $%-14d %-15d\n", 
-                                           hist[i].id, hist[i].name, hist[i].current_bid, hist[i].seller_id);
+                                if (hist[i].winner_id == my_client_id) {
+                                    printf("%-5d %-20s $%-14d %-15s\n", 
+                                           hist[i].item_id, hist[i].item_name, hist[i].amount, hist[i].seller_name);
                                     won_count++;
                                 }
                             }

@@ -230,10 +230,30 @@ void *client_handler(void *socket_desc) {
                 sprintf(res.message, "%d", hist_count);
                 send(sock, &res, sizeof(Response), 0);
                 
-                for(int i=0; i<hist_count; i++) {
-                    send(sock, &hist_items[i], sizeof(Item), 0);
+                // Package and send HistoryRecords instead of raw Items
+                for(int i = 0; i < hist_count; i++) {
+                    HistoryRecord hr;
+                    memset(&hr, 0, sizeof(HistoryRecord));
+                    
+                    hr.item_id = hist_items[i].id;
+                    strcpy(hr.item_name, hist_items[i].name);
+                    hr.amount = hist_items[i].current_bid;
+                    hr.seller_id = hist_items[i].seller_id;
+                    hr.winner_id = hist_items[i].current_winner_id;
+                    
+                    // Resolve Seller Name
+                    get_username(hist_items[i].seller_id, hr.seller_name);
+                    
+                    // Resolve Winner Name
+                    if (hist_items[i].current_winner_id == -1) {
+                        strcpy(hr.winner_name, "None");
+                    } else {
+                        get_username(hist_items[i].current_winner_id, hr.winner_name);
+                    }
+                    
+                    send(sock, &hr, sizeof(HistoryRecord), 0);
                 }
-                continue;
+                continue; // Skip the default send at the bottom
             
             case OP_CHECK_SELLER:
                 int seller_status = is_user_seller(my_user_id);

@@ -64,6 +64,16 @@ typedef struct {
     int session_id; // Assigned by server on login
 } Response;
 
+typedef struct {
+    int item_id;
+    char item_name[50];
+    int amount;
+    char seller_name[50];
+    char winner_name[50];
+    int seller_id;
+    int winner_id;
+} HistoryRecord;
+
 void get_username(int user_id, char *buffer);
 
 #endif
