@@ -190,7 +190,13 @@ void *client_handler(void *socket_desc) {
                      strcpy(res.message, "Auction Closed (No Bids).");
                 } else if (close_result == -2) {
                      res.operation = OP_ERROR;
-                     strcpy(res.message, "Error: Winner has insufficient funds!");
+                     strcpy(res.message, "Error: You are not the seller of this item.");
+                } else if (close_result == -3) {
+                     res.operation = OP_ERROR;
+                     strcpy(res.message, "Error: This auction is already closed or expired.");
+                } else if (close_result == -4) {
+                     res.operation = OP_ERROR;
+                     strcpy(res.message, "Error: Please enter a valid Item ID.");
                 } else {
                      res.operation = OP_ERROR;
                      strcpy(res.message, "Error closing auction.");

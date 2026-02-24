@@ -3,7 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <time.h>        // <--- ADDED THIS (Fixes implicit time declaration)
+#include <time.h>
 #include "common.h"
 #include "file_handler.h"
 #include "logger.h"
@@ -162,6 +162,11 @@ int close_auction(int item_id, int seller_id) {
     int fd = open(ITEM_FILE, O_RDWR);
     if (fd == -1) return -1;
 
+    if (item_id <= 0) {
+        close(fd); 
+        return -4;
+    }
+
     off_t offset = (item_id - 1) * sizeof(Item);
 
     if (lock_record(fd, F_WRLCK, offset, sizeof(Item)) == -1) {
@@ -170,13 +175,18 @@ int close_auction(int item_id, int seller_id) {
 
     Item item;
     lseek(fd, offset, SEEK_SET);
-    read(fd, &item, sizeof(Item));
+    
+    if (read(fd, &item, sizeof(Item)) <= 0) {
+        unlock_record(fd, offset, sizeof(Item)); 
+        close(fd); 
+        return -4; // Code -4: Item does not exist / Invalid ID
+    }
 
     if (item.seller_id != seller_id) {
-        unlock_record(fd, offset, sizeof(Item)); close(fd); return -2; 
+        unlock_record(fd, offset, sizeof(Item)); close(fd); return -2; // Not your item
     }
     if (item.status != ITEM_ACTIVE) {
-        unlock_record(fd, offset, sizeof(Item)); close(fd); return -3; 
+        unlock_record(fd, offset, sizeof(Item)); close(fd); return -3; // Already closed
     }
     
     // Auto-Close Logic handles no-bids, but we handle manual here:
