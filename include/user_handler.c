@@ -210,3 +210,35 @@ void get_username(int user_id, char *buffer) {
     }
     close(fd);
 }
+
+int update_balance(int user_id, int amount_change) {
+    int fd = open(USER_FILE, O_RDWR);
+    if (fd == -1) return -1;
+    
+    off_t offset = (user_id - 1) * sizeof(User);
+    if (lock_record(fd, F_WRLCK, offset, sizeof(User)) == -1) {
+        close(fd); return -1;
+    }
+    
+    User u;
+    lseek(fd, offset, SEEK_SET);
+    if (read(fd, &u, sizeof(User)) <= 0) {
+        unlock_record(fd, offset, sizeof(User));
+        close(fd); return -1;
+    }
+    
+    // If deducting, check if balance is sufficient
+    if (amount_change < 0 && u.balance < -amount_change) {
+        unlock_record(fd, offset, sizeof(User));
+        close(fd); return -2; // Insufficient Funds
+    }
+    
+    u.balance += amount_change;
+    
+    lseek(fd, offset, SEEK_SET);
+    write(fd, &u, sizeof(User));
+    
+    unlock_record(fd, offset, sizeof(User));
+    close(fd);
+    return 1;
+}

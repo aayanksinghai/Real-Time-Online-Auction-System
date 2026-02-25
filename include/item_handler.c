@@ -10,8 +10,7 @@
 
 #define ITEM_FILE "data/items.dat"
 
-extern int transfer_funds(int from_user_id, int to_user_id, int amount);
-extern int get_user_balance(int user_id);
+extern int update_balance(int user_id, int amount_change);
 
 int get_next_item_id(int fd) {
     long size = lseek(fd, 0, SEEK_END);
@@ -130,9 +129,19 @@ int place_bid(int item_id, int user_id, int bid_amount) {
         return -3; 
     }
 
-    if (get_user_balance(user_id) < bid_amount) {
-        lock.l_type = F_UNLCK; fcntl(fd, F_SETLKW, &lock); close(fd);
+    // --- ESCROW: Block (deduct) funds from the new bidder ---
+    // Passing negative bid_amount to deduct it
+    if (update_balance(user_id, -bid_amount) == -2) {
+        lock.l_type = F_UNLCK; 
+        fcntl(fd, F_SETLKW, &lock); 
+        close(fd);
         return -6; // Code -6 means Insufficient Funds
+    }
+
+    // --- ESCROW: Refund the previous bidder ---
+    // If someone else had the high bid, give them their blocked money back
+    if (item.current_winner_id != -1) {
+        update_balance(item.current_winner_id, item.current_bid); 
     }
 
     item.current_bid = bid_amount;
@@ -199,8 +208,8 @@ int close_auction(int item_id, int seller_id) {
         return 0; 
     }
 
-    int trans_status = transfer_funds(item.current_winner_id, item.seller_id, item.current_bid);
-    
+    int trans_status = update_balance(item.seller_id, item.current_bid);
+
     if (trans_status == 1) {
         item.status = ITEM_SOLD;
         item.end_time = time(NULL); // <--- FORCE TIMER TO END NOW
@@ -269,7 +278,7 @@ void check_expired_items() {
             
             if (item.status == ITEM_ACTIVE) {
                 if (item.current_winner_id != -1) {
-                    transfer_funds(item.current_winner_id, item.seller_id, item.current_bid);
+                    update_balance(item.seller_id, item.current_bid);
                     char log[100];
                     sprintf(log, "Auto-Close: Item %d sold to %d for %d", item.id, item.current_winner_id, item.current_bid);
                     write_log(log);
