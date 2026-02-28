@@ -85,7 +85,7 @@ void *client_handler(void *socket_desc) {
                         my_user_id = user_id;
                         res.operation = OP_SUCCESS;
                         res.session_id = session_status;
-                        sprintf(res.message, "Welcome User ID %d", user_id);
+                        sprintf(res.message, "Welcome User %s", req.username);
                         char log_msg[150];
                         sprintf(log_msg, "User %d %s successfully logged in.", my_user_id, req.username);
                         write_log(log_msg);
