@@ -6,6 +6,7 @@
 #include "common.h"
 #include "logger.h"
 #include "file_handler.h"
+#include <time.h>
 
 #define USER_FILE "data/users.dat"
 
@@ -65,6 +66,7 @@ int register_user(char *username, char *password, int role, int initial_balance)
     strcpy(new_user.password, password);
     new_user.role = role;
     new_user.balance = initial_balance;
+    new_user.cooldown_until = 0;
 
     write(fd, &new_user, sizeof(User));
 
@@ -241,4 +243,40 @@ int update_balance(int user_id, int amount_change) {
     unlock_record(fd, offset, sizeof(User));
     close(fd);
     return 1;
+}
+
+int get_user_cooldown(int user_id) {
+    int fd = open(USER_FILE, O_RDONLY);
+    if (fd == -1) return 0;
+    
+    User u;
+    lseek(fd, (user_id - 1) * sizeof(User), SEEK_SET);
+    if (read(fd, &u, sizeof(User)) > 0) {
+        close(fd);
+        time_t now = time(NULL);
+        if (u.cooldown_until > now) {
+            return (int)(u.cooldown_until - now);
+        }
+    } else {
+        close(fd);
+    }
+    return 0;
+}
+
+void set_user_cooldown(int user_id, int cooldown_seconds) {
+    int fd = open(USER_FILE, O_RDWR);
+    if (fd == -1) return;
+    
+    off_t offset = (user_id - 1) * sizeof(User);
+    if (lock_record(fd, F_WRLCK, offset, sizeof(User)) != -1) {
+        User u;
+        lseek(fd, offset, SEEK_SET);
+        if (read(fd, &u, sizeof(User)) > 0) {
+            u.cooldown_until = time(NULL) + cooldown_seconds;
+            lseek(fd, offset, SEEK_SET);
+            write(fd, &u, sizeof(User));
+        }
+        unlock_record(fd, offset, sizeof(User));
+    }
+    close(fd);
 }

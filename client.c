@@ -91,20 +91,21 @@ int main() {
                     int is_seller = atoi(res.message);
 
                     // 2. Define dynamic menu numbers
-                    int opt_close  = is_seller ? 4 : -1;
-                    int opt_bal    = is_seller ? 5 : 4;
-                    int opt_mybids = is_seller ? 6 : 5;
-                    int opt_hist   = is_seller ? 7 : 6;
-                    int opt_logout = is_seller ? 8 : 7;
+                    int opt_withdraw = 4;
+                    int opt_close  = is_seller ? 5 : -1;
+                    int opt_bal    = is_seller ? 6 : 5;
+                    int opt_mybids = is_seller ? 7 : 6;
+                    int opt_hist   = is_seller ? 8 : 7;
+                    int opt_logout = is_seller ? 9 : 8;
 
-                    // 3. Print Dynamic Menu
                     printf("\n--- AUCTION MENU ---\n");
                     printf("1. List New Item (Sell)\n");
                     printf("2. View All Items (Buy)\n");
                     printf("3. Place Bid\n");
-                    if (is_seller) {
+                    printf("%d. Withdraw Bid\n", opt_withdraw); // <--- NEW OPTION
+                    if (is_seller) 
                         printf("%d. Close Auction (Seller)\n", opt_close);
-                    }
+
                     printf("%d. Check Balance\n", opt_bal);
                     printf("%d. My Active Bid\n", opt_mybids);
                     printf("%d. Transaction History\n", opt_hist);
@@ -176,6 +177,18 @@ int main() {
                         sprintf(req.payload, "%d|%d", item_id, amount);
                         send(sock, &req, sizeof(Request), 0);
                         
+                        recv_all(sock, &res, sizeof(Response));
+                        printf("Server: %s\n", res.message);
+                    }
+                    else if (menu_choice == opt_withdraw) {
+                        req.operation = OP_WITHDRAW_BID;
+                        printf("Enter Item ID to Withdraw Bid from: ");
+                        int wid;
+                        scanf("%d", &wid);
+                        clear_input();
+                        
+                        sprintf(req.payload, "%d", wid);
+                        send(sock, &req, sizeof(Request), 0);
                         recv_all(sock, &res, sizeof(Response));
                         printf("Server: %s\n", res.message);
                     }

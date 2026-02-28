@@ -22,6 +22,9 @@ int get_my_bids(int user_id, Item *buffer, int max_items);
 int get_transaction_history(int user_id, Item *buffer, int max_items);
 int is_user_seller(int user_id);
 void check_expired_items();
+int withdraw_bid(int item_id, int user_id);
+int get_user_cooldown(int user_id);
+void set_user_cooldown(int user_id, int cooldown_seconds);
 
 // MONITOR THREAD
 void *auction_monitor_thread(void *arg) {
@@ -170,7 +173,12 @@ void *client_handler(void *socket_desc) {
                 } else if (result == -6) {
                     res.operation = OP_ERROR;
                     sprintf(res.message, "Bid Failed: Insufficient balance to place this bid.");
-                }else {
+                } else if (result == -7) {
+                    // --- NEW COOLDOWN ERROR ---
+                    int cd_left = get_user_cooldown(my_user_id);
+                    res.operation = OP_ERROR;
+                    sprintf(res.message, "Bid Failed: You are on cooldown for %d more seconds.", cd_left);
+                } else {
                     res.operation = OP_ERROR;
                     sprintf(res.message, "Bid Failed: System Error or Invalid ID.");
                 }
@@ -265,6 +273,35 @@ void *client_handler(void *socket_desc) {
                 int seller_status = is_user_seller(my_user_id);
                 res.operation = OP_SUCCESS;
                 sprintf(res.message, "%d", seller_status);
+                break;
+
+            case OP_WITHDRAW_BID:
+                int w_item_id;
+                sscanf(req.payload, "%d", &w_item_id);
+                
+                // 1. Check if they are already on cooldown
+                int current_cd = get_user_cooldown(my_user_id);
+                if (current_cd > 0) {
+                    res.operation = OP_ERROR;
+                    sprintf(res.message, "Withdraw Failed: You are on cooldown for %d more seconds.", current_cd);
+                    break;
+                }
+
+                // 2. Attempt to withdraw
+                int w_res = withdraw_bid(w_item_id, my_user_id);
+                
+                if (w_res == 1) {
+                    // Apply a 120-second (2 minute) cooldown penalty
+                    set_user_cooldown(my_user_id, 120); 
+                    res.operation = OP_SUCCESS;
+                    strcpy(res.message, "Bid Withdrawn. Escrow refunded. 2-Minute Cooldown Applied.");
+                } else if (w_res == -2) {
+                    res.operation = OP_ERROR; strcpy(res.message, "Error: Auction is no longer active.");
+                } else if (w_res == -3) {
+                    res.operation = OP_ERROR; strcpy(res.message, "Error: You are not the highest bidder.");
+                } else {
+                    res.operation = OP_ERROR; strcpy(res.message, "Error: Invalid Item ID.");
+                }
                 break;
         }
         send(sock, &res, sizeof(Response), 0);

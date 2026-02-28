@@ -11,6 +11,7 @@
 #define ITEM_FILE "data/items.dat"
 
 extern int update_balance(int user_id, int amount_change);
+extern int get_user_cooldown(int user_id);
 
 int get_next_item_id(int fd) {
     long size = lseek(fd, 0, SEEK_END);
@@ -127,6 +128,12 @@ int place_bid(int item_id, int user_id, int bid_amount) {
     if (bid_amount <= item.current_bid) {
         lock.l_type = F_UNLCK; fcntl(fd, F_SETLKW, &lock); close(fd);
         return -3; 
+    }
+
+    // --- COOLDOWN CHECK ---
+    if (get_user_cooldown(user_id) > 0) {
+        lock.l_type = F_UNLCK; fcntl(fd, F_SETLKW, &lock); close(fd);
+        return -7; // Code -7: Cooldown Active
     }
 
     // --- ESCROW: Block (deduct) funds from the new bidder ---
@@ -346,4 +353,42 @@ int is_user_seller(int user_id) {
     unlock_record(fd, 0, 0);
     close(fd);
     return found;
+}
+
+int withdraw_bid(int item_id, int user_id) {
+    int fd = open(ITEM_FILE, O_RDWR);
+    if (fd == -1) return -1;
+    if (item_id <= 0) { close(fd); return -4; } // Invalid ID
+
+    off_t offset = (item_id - 1) * sizeof(Item);
+    if (lock_record(fd, F_WRLCK, offset, sizeof(Item)) == -1) {
+        close(fd); return -1;
+    }
+
+    Item item;
+    lseek(fd, offset, SEEK_SET);
+    if (read(fd, &item, sizeof(Item)) <= 0) {
+        unlock_record(fd, offset, sizeof(Item)); close(fd); return -4;
+    }
+
+    if (item.status != ITEM_ACTIVE) {
+        unlock_record(fd, offset, sizeof(Item)); close(fd); return -2; // Not active
+    }
+    if (item.current_winner_id != user_id) {
+        unlock_record(fd, offset, sizeof(Item)); close(fd); return -3; // Not highest bidder
+    }
+
+    // Refund the user's blocked funds
+    update_balance(user_id, item.current_bid);
+
+    // Reset the item bid state
+    item.current_winner_id = -1;
+    item.current_bid = 0; // Drops bid to 0 so others can bid again
+
+    lseek(fd, offset, SEEK_SET);
+    write(fd, &item, sizeof(Item));
+
+    unlock_record(fd, offset, sizeof(Item));
+    close(fd);
+    return 1;
 }
