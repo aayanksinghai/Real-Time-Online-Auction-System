@@ -69,7 +69,7 @@ int main() {
                 break;
             }
             
-            int bytes_received = recv(sock, &res, sizeof(Response), 0);
+            int bytes_received = recv_all(sock, &res, sizeof(Response));
             if (bytes_received <= 0) {
                 printf("Error: Connection lost with server.\n");
                 close(sock);
@@ -79,7 +79,10 @@ int main() {
             
             if (res.operation == OP_SUCCESS) {
                 int my_client_id = -1;
-                sscanf(res.message, "Welcome User ID %d", &my_client_id);
+                char display_msg[200];
+                sscanf(res.message, "%d|%[^\n]", &my_client_id, display_msg);
+
+                printf("Server: %s\n", display_msg);
                 // --- ENTERING AUCTION MENU LOOP ---
                 int logged_in = 1;
                 while(logged_in) {
@@ -212,22 +215,50 @@ int main() {
                         printf("Server: %s\n", res.message);
                     }
                     else if (menu_choice == opt_mybids) {
-                        // ... (existing logic for OP_MY_BIDS) ...
                         req.operation = OP_MY_BIDS;
                         send(sock, &req, sizeof(Request), 0);
+                        
                         recv_all(sock, &res, sizeof(Response));
                         int count = atoi(res.message);
-                        printf("\n--- ITEMS YOU ARE WINNING (%d) ---\n", count);
-                        if (count > 0) {
-                            printf("%-5s %-20s %-15s\n", "ID", "Name", "Current Bid");
-                            printf("------------------------------------------\n");
+                        
+                        if (count == 0) {
+                            printf("\nYou have no active bids.\n");
                         } else {
-                            printf("You have no active bids.\n");
-                        }
-                        Item item;
-                        for(int i=0; i<count; i++) {
-                            recv_all(sock, &item, sizeof(Item));
-                            printf("%-5d %-20s %-15d\n", item.id, item.name, item.current_bid);
+                            // Receive all items
+                            DisplayItem my_bids[50];
+                            for(int i=0; i<count; i++) {
+                                recv_all(sock, &my_bids[i], sizeof(DisplayItem));
+                            }
+
+                            // TABLE 1: Winning
+                            printf("\n[ ITEMS YOU ARE WINNING ]\n");
+                            printf("%-5s %-20s %-15s\n", "ID", "Name", "Your Bid");
+                            printf("------------------------------------------\n");
+                            int win_count = 0;
+                            for(int i=0; i<count; i++) {
+                                if(my_bids[i].winner_id == my_client_id) {
+                                    printf("%-5d %-20s $%-14d\n", 
+                                           my_bids[i].id, my_bids[i].name, my_bids[i].current_bid);
+                                    win_count++;
+                                }
+                            }
+                            if(win_count == 0) printf("None.\n");
+
+                            // TABLE 2: Outbid (Applied but not winning)
+                            printf("\n[ APPLIED BUT NOT WINNING (OUTBID) ]\n");
+                            // Added "My Bid" column
+                            printf("%-5s %-20s %-10s %-10s %-15s\n", "ID", "Name", "Curr Bid", "My Bid", "Winning User");
+                            printf("----------------------------------------------------------------\n");
+                            int outbid_count = 0;
+                            for(int i=0; i<count; i++) {
+                                if(my_bids[i].winner_id != my_client_id) {
+                                    // Print the my_bid_amount variable
+                                    printf("%-5d %-20s $%-9d $%-9d %-15s\n", 
+                                           my_bids[i].id, my_bids[i].name, my_bids[i].current_bid, my_bids[i].my_bid_amount, my_bids[i].winner_name);
+                                    outbid_count++;
+                                }
+                            }
+                            if(outbid_count == 0) printf("None.\n");
                         }
                     }
                     else if (menu_choice == opt_hist) {

@@ -89,7 +89,7 @@ void *client_handler(void *socket_desc) {
                         my_user_id = user_id;
                         res.operation = OP_SUCCESS;
                         res.session_id = session_status;
-                        sprintf(res.message, "Welcome User %s", req.username);
+                        sprintf(res.message, "%d|Welcome User %s", user_id, req.username);
                         char log_msg[150];
                         sprintf(log_msg, "User %d %s successfully logged in.", my_user_id, req.username);
                         write_log(log_msg);
@@ -247,9 +247,33 @@ void *client_handler(void *socket_desc) {
                 res.operation = OP_SUCCESS;
                 sprintf(res.message, "%d", my_count);
                 send(sock, &res, sizeof(Response), 0);
-                
-                for(int i=0; i<my_count; i++) {
-                    send(sock, &my_items[i], sizeof(Item), 0);
+
+                for (int i = 0; i < my_count; i++) {
+                    DisplayItem d_item;
+                    memset(&d_item, 0, sizeof(DisplayItem));
+                    
+                    d_item.id = my_items[i].id;
+                    strcpy(d_item.name, my_items[i].name);
+                    d_item.current_bid = my_items[i].current_bid;
+                    d_item.end_time = my_items[i].end_time;
+                    d_item.status = my_items[i].status;
+                    d_item.winner_id = my_items[i].current_winner_id; 
+
+                    d_item.my_bid_amount = 0;
+                    for(int j = 0; j < my_items[i].past_bidders_count; j++) {
+                        if(my_items[i].past_bidders[j] == my_user_id) {
+                            d_item.my_bid_amount = my_items[i].past_bid_amounts[j];
+                            break;
+                        }
+                    }
+
+                    if (my_items[i].current_winner_id == -1) {
+                        strcpy(d_item.winner_name, "None");
+                    } else {
+                        get_username(my_items[i].current_winner_id, d_item.winner_name);
+                    }
+
+                    send(sock, &d_item, sizeof(DisplayItem), 0);
                 }
                 continue;
             

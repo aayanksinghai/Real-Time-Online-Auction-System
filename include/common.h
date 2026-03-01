@@ -4,6 +4,7 @@
 #define PORT 8085
 #define BUFFER_SIZE 1024
 #define MAX_CLIENTS 10
+#define MAX_BIDDERS 20
 
 // Operation Codes (Client -> Server)
 #define OP_LOGIN 1
@@ -50,6 +51,9 @@ typedef struct {
     int current_bid;        // Current highest price
     time_t end_time;        // Auction end time
     int status;             // ITEM_ACTIVE or ITEM_SOLD
+    int past_bidders[MAX_BIDDERS];
+    int past_bid_amounts[MAX_BIDDERS];
+    int past_bidders_count;
 } Item;
 
 // Protocol Message
@@ -84,6 +88,8 @@ typedef struct {
     char winner_name[50];
     time_t end_time;
     int status;
+    int winner_id;
+    int my_bid_amount;
 } DisplayItem;
 
 void get_username(int user_id, char *buffer);

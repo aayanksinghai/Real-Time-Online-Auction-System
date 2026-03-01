@@ -44,6 +44,9 @@ int create_item(char *name, char *desc, int base_price, int duration_minutes, in
     new_item.seller_id = seller_id;
     new_item.current_winner_id = -1;
     new_item.status = ITEM_ACTIVE;
+    new_item.past_bidders_count = 0;
+    memset(new_item.past_bidders, 0, sizeof(new_item.past_bidders));
+    memset(new_item.past_bid_amounts, 0, sizeof(new_item.past_bid_amounts));
 
     lseek(fd, 0, SEEK_END);
     write(fd, &new_item, sizeof(Item));
@@ -151,6 +154,20 @@ int place_bid(int item_id, int user_id, int bid_amount) {
         update_balance(item.current_winner_id, item.current_bid); 
     }
 
+    int found_in_history = 0;
+    for(int i = 0; i < item.past_bidders_count; i++) {
+        if(item.past_bidders[i] == user_id) { 
+            item.past_bid_amounts[i] = bid_amount; // <--- Update their personal max bid
+            found_in_history = 1; 
+            break; 
+        }
+    }
+    if(!found_in_history && item.past_bidders_count < MAX_BIDDERS) {
+        item.past_bidders[item.past_bidders_count] = user_id;
+        item.past_bid_amounts[item.past_bidders_count] = bid_amount; // <--- Record their bid
+        item.past_bidders_count++;
+    }
+
     item.current_bid = bid_amount;
     item.current_winner_id = user_id;
     
@@ -247,21 +264,27 @@ int close_auction(int item_id, int seller_id) {
 int get_my_bids(int user_id, Item *buffer, int max_items) {
     int fd = open(ITEM_FILE, O_RDONLY);
     if (fd == -1) return 0;
-
-    if (lock_record(fd, F_RDLCK, 0, 0) == -1) { 
-        close(fd); return 0;
-    }
+    if (lock_record(fd, F_RDLCK, 0, 0) == -1) { close(fd); return 0; }
 
     Item item;
     int count = 0;
     while(read(fd, &item, sizeof(Item)) > 0 && count < max_items) {
-        if (item.current_winner_id == user_id && item.status == ITEM_ACTIVE) {
-            buffer[count++] = item;
+        if (item.status == ITEM_ACTIVE) {
+            // Check if they are winning
+            if (item.current_winner_id == user_id) {
+                buffer[count++] = item;
+            } else {
+                // Check if they bid previously but are losing
+                for(int i = 0; i < item.past_bidders_count; i++) {
+                    if(item.past_bidders[i] == user_id) {
+                        buffer[count++] = item;
+                        break;
+                    }
+                }
+            }
         }
     }
-
-    unlock_record(fd, 0, 0);
-    close(fd);
+    unlock_record(fd, 0, 0); close(fd);
     return count;
 }
 
