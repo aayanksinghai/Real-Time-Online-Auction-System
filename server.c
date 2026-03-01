@@ -133,8 +133,24 @@ void *client_handler(void *socket_desc) {
                 send(sock, &res, sizeof(Response), 0);
                 
                 // Send actual items
-                for(int i=0; i<count; i++) {
-                    send(sock, &items[i], sizeof(Item), 0);
+                for (int i = 0; i < count; i++) {
+                    DisplayItem d_item;
+                    memset(&d_item, 0, sizeof(DisplayItem));
+                    
+                    d_item.id = items[i].id;
+                    strcpy(d_item.name, items[i].name);
+                    d_item.current_bid = items[i].current_bid;
+                    d_item.end_time = items[i].end_time;
+                    d_item.status = items[i].status;
+
+                    // Resolve the Highest Bidder's Name
+                    if (items[i].current_winner_id == -1) {
+                        strcpy(d_item.winner_name, "None");
+                    } else {
+                        get_username(items[i].current_winner_id, d_item.winner_name);
+                    }
+
+                    send(sock, &d_item, sizeof(DisplayItem), 0);
                 }
                 continue; // Skip the default send at bottom since we already sent response
 

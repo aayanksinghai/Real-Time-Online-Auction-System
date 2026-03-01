@@ -143,11 +143,11 @@ int main() {
                         printf("%-5s %-20s %-10s %-15s %-15s\n", "ID", "Name", "Price", "High Bidder", "Time Left");
                         printf("----------------------------------------------------------------------\n");
                         
-                        Item item;
+                        DisplayItem item; 
                         time_t now = time(NULL);
 
                         for(int i=0; i<count; i++) {
-                            recv_all(sock, &item, sizeof(Item));
+                            recv_all(sock, &item, sizeof(DisplayItem)); 
                             
                             char time_str[20];
                             int seconds_left = (int)difftime(item.end_time, now);
@@ -160,8 +160,9 @@ int main() {
                                 sprintf(time_str, "%dm %ds", min, sec);
                             }
 
-                            printf("%-5d %-20s %-10d %-15d %-15s\n", 
-                                   item.id, item.name, item.current_bid, item.current_winner_id, time_str);
+                            // --- CHANGED %-15d TO %-15s AND USED item.winner_name ---
+                            printf("%-5d %-20s $%-9d %-15s %-15s\n", 
+                                   item.id, item.name, item.current_bid, item.winner_name, time_str);
                         }
                     }
                     else if (menu_choice == 3) {

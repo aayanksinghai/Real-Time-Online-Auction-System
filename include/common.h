@@ -76,6 +76,15 @@ typedef struct {
     int winner_id;
 } HistoryRecord;
 
+typedef struct {
+    int id;
+    char name[50];
+    int current_bid;
+    char winner_name[50];
+    time_t end_time;
+    int status;
+} DisplayItem;
+
 void get_username(int user_id, char *buffer);
 
 #endif
