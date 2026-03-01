@@ -25,6 +25,7 @@ void check_expired_items();
 int withdraw_bid(int item_id, int user_id);
 int get_user_cooldown(int user_id);
 void set_user_cooldown(int user_id, int cooldown_seconds);
+int has_active_bids(int user_id);
 
 // MONITOR THREAD
 void *auction_monitor_thread(void *arg) {
@@ -318,6 +319,12 @@ void *client_handler(void *socket_desc) {
                 } else {
                     res.operation = OP_ERROR; strcpy(res.message, "Error: Invalid Item ID.");
                 }
+                break;
+            
+            case OP_CHECK_ACTIVE_BIDS:
+                int active_bids_status = has_active_bids(my_user_id);
+                res.operation = OP_SUCCESS;
+                sprintf(res.message, "%d", active_bids_status);
                 break;
         }
         send(sock, &res, sizeof(Response), 0);

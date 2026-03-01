@@ -392,3 +392,26 @@ int withdraw_bid(int item_id, int user_id) {
     close(fd);
     return 1;
 }
+
+int has_active_bids(int user_id) {
+    int fd = open(ITEM_FILE, O_RDONLY);
+    if (fd == -1) return 0;
+
+    // Shared lock for reading
+    if (lock_record(fd, F_RDLCK, 0, 0) == -1) {
+        close(fd); return 0;
+    }
+
+    Item item;
+    int found = 0;
+    while(read(fd, &item, sizeof(Item)) > 0) {
+        if (item.current_winner_id == user_id && item.status == ITEM_ACTIVE) {
+            found = 1;
+            break; 
+        }
+    }
+
+    unlock_record(fd, 0, 0);
+    close(fd);
+    return found;
+}

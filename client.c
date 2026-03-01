@@ -83,31 +83,38 @@ int main() {
                 // --- ENTERING AUCTION MENU LOOP ---
                 int logged_in = 1;
                 while(logged_in) {
-                    // 1. Check if user is a seller before printing the menu
+                    // 1. Check if user is a seller
                     memset(&req, 0, sizeof(Request));
                     req.operation = OP_CHECK_SELLER;
                     send(sock, &req, sizeof(Request), 0);
                     recv_all(sock, &res, sizeof(Response));
                     int is_seller = atoi(res.message);
 
-                    // 2. Define dynamic menu numbers
-                    int opt_withdraw = 4;
-                    int opt_close  = is_seller ? 5 : -1;
-                    int opt_bal    = is_seller ? 6 : 5;
-                    int opt_mybids = is_seller ? 7 : 6;
-                    int opt_hist   = is_seller ? 8 : 7;
-                    int opt_logout = is_seller ? 9 : 8;
+                    // 1.5. Check if user has active bids they can withdraw
+                    memset(&req, 0, sizeof(Request));
+                    req.operation = OP_CHECK_ACTIVE_BIDS;
+                    send(sock, &req, sizeof(Request), 0);
+                    recv_all(sock, &res, sizeof(Response));
+                    int has_bids = atoi(res.message);
 
+                    // 2. Define perfectly sequential dynamic menu numbers
+                    int current_opt = 4; // Start numbering after the 3 static options
+                    int opt_withdraw = has_bids  ? current_opt++ : -1;
+                    int opt_close    = is_seller ? current_opt++ : -1;
+                    int opt_bal      = current_opt++;
+                    int opt_mybids   = current_opt++;
+                    int opt_hist     = current_opt++;
+                    int opt_logout   = current_opt++;
+
+                    // 3. Print Dynamic Menu
                     printf("\n--- AUCTION MENU ---\n");
                     printf("1. List New Item (Sell)\n");
                     printf("2. View All Items (Buy)\n");
                     printf("3. Place Bid\n");
-                    printf("%d. Withdraw Bid\n", opt_withdraw); // <--- NEW OPTION
-                    if (is_seller) 
-                        printf("%d. Close Auction (Seller)\n", opt_close);
-
+                    if (has_bids)  printf("%d. Withdraw Bid\n", opt_withdraw);
+                    if (is_seller) printf("%d. Close Auction (Seller)\n", opt_close);
                     printf("%d. Check Balance\n", opt_bal);
-                    printf("%d. My Active Bid\n", opt_mybids);
+                    printf("%d. My Active Bids\n", opt_mybids);
                     printf("%d. Transaction History\n", opt_hist);
                     printf("%d. Logout\n", opt_logout);
                     printf("Enter choice: ");
@@ -119,21 +126,21 @@ int main() {
                     memset(&req, 0, sizeof(Request)); // Reset req for next operations
 
                     if (menu_choice == 1) {
+                        // ... (existing logic for OP_CREATE_ITEM) ...
                         req.operation = OP_CREATE_ITEM;
                         char name[50], desc[100];
                         int price, duration;
-                        
                         printf("Item Name: "); scanf(" %[^\n]", name); clear_input();
                         printf("Description: "); scanf(" %[^\n]", desc); clear_input();
                         printf("Base Price: "); scanf("%d", &price); clear_input();
                         printf("Duration (in minutes): "); scanf("%d", &duration); clear_input();
-                        
                         sprintf(req.payload, "%s|%s|%d|%d", name, desc, price, duration);
                         send(sock, &req, sizeof(Request), 0);
                         recv_all(sock, &res, sizeof(Response));
                         printf("Server: %s\n", res.message);
                     }
                     else if (menu_choice == 2) {
+                        // ... (existing logic for OP_LIST_ITEMS / DisplayItem loop) ...
                         req.operation = OP_LIST_ITEMS;
                         send(sock, &req, sizeof(Request), 0);
                         recv_all(sock, &res, sizeof(Response));
@@ -143,12 +150,11 @@ int main() {
                         printf("%-5s %-20s %-10s %-15s %-15s\n", "ID", "Name", "Price", "High Bidder", "Time Left");
                         printf("----------------------------------------------------------------------\n");
                         
-                        DisplayItem item; 
+                        DisplayItem item;
                         time_t now = time(NULL);
 
                         for(int i=0; i<count; i++) {
-                            recv_all(sock, &item, sizeof(DisplayItem)); 
-                            
+                            recv_all(sock, &item, sizeof(DisplayItem));
                             char time_str[20];
                             int seconds_left = (int)difftime(item.end_time, now);
 
@@ -159,41 +165,36 @@ int main() {
                                 int sec = seconds_left % 60;
                                 sprintf(time_str, "%dm %ds", min, sec);
                             }
-
-                            // --- CHANGED %-15d TO %-15s AND USED item.winner_name ---
                             printf("%-5d %-20s $%-9d %-15s %-15s\n", 
                                    item.id, item.name, item.current_bid, item.winner_name, time_str);
                         }
                     }
                     else if (menu_choice == 3) {
+                        // ... (existing logic for OP_BID) ...
                         req.operation = OP_BID;
                         int item_id, amount;
-                        
-                        printf("Enter Item ID to bid on: "); 
-                        scanf("%d", &item_id);
-                        printf("Enter your Bid Amount: "); 
-                        scanf("%d", &amount);
+                        printf("Enter Item ID to bid on: "); scanf("%d", &item_id);
+                        printf("Enter your Bid Amount: "); scanf("%d", &amount);
                         clear_input();
-                        
                         sprintf(req.payload, "%d|%d", item_id, amount);
                         send(sock, &req, sizeof(Request), 0);
-                        
                         recv_all(sock, &res, sizeof(Response));
                         printf("Server: %s\n", res.message);
                     }
-                    else if (menu_choice == opt_withdraw) {
+                    else if (has_bids && menu_choice == opt_withdraw) {
+                        // ... (existing logic for OP_WITHDRAW_BID) ...
                         req.operation = OP_WITHDRAW_BID;
                         printf("Enter Item ID to Withdraw Bid from: ");
                         int wid;
                         scanf("%d", &wid);
                         clear_input();
-                        
                         sprintf(req.payload, "%d", wid);
                         send(sock, &req, sizeof(Request), 0);
                         recv_all(sock, &res, sizeof(Response));
                         printf("Server: %s\n", res.message);
                     }
                     else if (is_seller && menu_choice == opt_close) {
+                        // ... (existing logic for OP_CLOSE_AUCTION) ...
                         req.operation = OP_CLOSE_AUCTION;
                         printf("Enter Item ID to Close: ");
                         int cid;
@@ -204,27 +205,25 @@ int main() {
                         printf("Server: %s\n", res.message);
                     }
                     else if (menu_choice == opt_bal) {
+                        // ... (existing logic for OP_VIEW_BALANCE) ...
                         req.operation = OP_VIEW_BALANCE;
                         send(sock, &req, sizeof(Request), 0);
                         recv_all(sock, &res, sizeof(Response));
                         printf("Server: %s\n", res.message);
                     }
                     else if (menu_choice == opt_mybids) {
+                        // ... (existing logic for OP_MY_BIDS) ...
                         req.operation = OP_MY_BIDS;
                         send(sock, &req, sizeof(Request), 0);
-                        
                         recv_all(sock, &res, sizeof(Response));
                         int count = atoi(res.message);
-                        
                         printf("\n--- ITEMS YOU ARE WINNING (%d) ---\n", count);
-                        
                         if (count > 0) {
                             printf("%-5s %-20s %-15s\n", "ID", "Name", "Current Bid");
                             printf("------------------------------------------\n");
                         } else {
                             printf("You have no active bids.\n");
                         }
-                        
                         Item item;
                         for(int i=0; i<count; i++) {
                             recv_all(sock, &item, sizeof(Item));
@@ -232,9 +231,9 @@ int main() {
                         }
                     }
                     else if (menu_choice == opt_hist) {
+                        // ... (existing logic for OP_TRANSACTION_HISTORY) ...
                         req.operation = OP_TRANSACTION_HISTORY;
                         send(sock, &req, sizeof(Request), 0);
-                        
                         recv_all(sock, &res, sizeof(Response));
                         int count = atoi(res.message);
                         
@@ -242,14 +241,12 @@ int main() {
                         if (count == 0) {
                             printf("No past transactions found.\n");
                         } else {
-                            // Receive the new HistoryRecord structs
                             HistoryRecord hist[50];
                             for(int i=0; i<count; i++) {
                                 recv_all(sock, &hist[i], sizeof(HistoryRecord));
                             }
                             
                             printf("\n[ ITEMS YOU SOLD ]\n");
-                            // Changed column header from Winner ID to Winner
                             printf("%-5s %-20s %-15s %-15s\n", "ID", "Name", "Final Price", "Winner");
                             printf("-----------------------------------------------------------\n");
                             int sold_count = 0;
@@ -263,7 +260,6 @@ int main() {
                             if (sold_count == 0) printf("You haven't sold any items yet.\n");
 
                             printf("\n[ ITEMS YOU WON ]\n");
-                            // Changed column header from Seller ID to Seller
                             printf("%-5s %-20s %-15s %-15s\n", "ID", "Name", "Winning Bid", "Seller");
                             printf("-----------------------------------------------------------\n");
                             int won_count = 0;
