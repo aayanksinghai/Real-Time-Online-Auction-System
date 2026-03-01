@@ -381,7 +381,7 @@ int is_user_seller(int user_id) {
 int withdraw_bid(int item_id, int user_id) {
     int fd = open(ITEM_FILE, O_RDWR);
     if (fd == -1) return -1;
-    if (item_id <= 0) { close(fd); return -4; } // Invalid ID
+    if (item_id <= 0) { close(fd); return -4; } 
 
     off_t offset = (item_id - 1) * sizeof(Item);
     if (lock_record(fd, F_WRLCK, offset, sizeof(Item)) == -1) {
@@ -395,19 +395,62 @@ int withdraw_bid(int item_id, int user_id) {
     }
 
     if (item.status != ITEM_ACTIVE) {
-        unlock_record(fd, offset, sizeof(Item)); close(fd); return -2; // Not active
+        unlock_record(fd, offset, sizeof(Item)); close(fd); return -2; 
     }
     if (item.current_winner_id != user_id) {
-        unlock_record(fd, offset, sizeof(Item)); close(fd); return -3; // Not highest bidder
+        unlock_record(fd, offset, sizeof(Item)); close(fd); return -3; 
     }
 
-    // Refund the user's blocked funds
+    // 1. Refund the withdrawing user's escrowed funds
     update_balance(user_id, item.current_bid);
 
-    // Reset the item bid state
-    item.current_winner_id = -1;
-    item.current_bid = 0; // Drops bid to 0 so others can bid again
+    // 2. Erase withdrawing user's bid from history so they aren't chosen again
+    for(int i = 0; i < item.past_bidders_count; i++) {
+        if(item.past_bidders[i] == user_id) {
+            item.past_bid_amounts[i] = 0; // Nullify their bid
+            break;
+        }
+    }
 
+    // 3. Find the highest remaining valid bidder who can afford the escrow
+    int new_winner_id = -1;
+    int new_high_bid = 0;
+
+    while(1) {
+        int max_bid = 0;
+        int max_idx = -1;
+
+        // Scan the history for the highest remaining bid amount
+        for(int i = 0; i < item.past_bidders_count; i++) {
+            if(item.past_bid_amounts[i] > max_bid) {
+                max_bid = item.past_bid_amounts[i];
+                max_idx = i;
+            }
+        }
+
+        // If no one is left with a bid > 0, stop searching
+        if (max_idx == -1) {
+            break;
+        }
+
+        // Try to deduct (escrow) the funds from this next highest bidder
+        if (update_balance(item.past_bidders[max_idx], -max_bid) == 1) {
+            // Success! They have enough funds. They are the new winner.
+            new_winner_id = item.past_bidders[max_idx];
+            new_high_bid = max_bid;
+            break;
+        } else {
+            // They spent their refunded money elsewhere and can't afford this anymore!
+            // Disqualify their bid and loop again to find the NEXT highest.
+            item.past_bid_amounts[max_idx] = 0;
+        }
+    }
+
+    // 4. Update the item's state with the new winner (or -1 and $0 if no one was left)
+    item.current_winner_id = new_winner_id;
+    item.current_bid = new_high_bid;
+
+    // Write back to the database
     lseek(fd, offset, SEEK_SET);
     write(fd, &item, sizeof(Item));
 
