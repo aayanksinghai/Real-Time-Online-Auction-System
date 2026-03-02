@@ -270,25 +270,31 @@ make clean
 
 ### Docker Setup
 
-```bash
-# Build and start the server container
-docker-compose up --build -d
+The server image is available on DockerHub. No source code needed to run the server.
 
-# The server runs on port 8085
-# Connect using a locally compiled client:
-make client
+```bash
+# Step 1: Start the server (auto-pulls the image from DockerHub)
+make docker-up
+
+# The server is now running on port 8085.
+# The container auto-restarts on reboot (unless manually stopped).
+```
+
+```bash
+# Step 2: Compile and run the client locally (requires GCC)
+make init_dirs client
 ./bin/client
 ```
 
 ```bash
-# Stop the container
-docker-compose down
+# Stop the server
+make docker-down
 
-# Stop and remove persisted data
-docker-compose down -v
+# Stop and remove all persisted data
+make docker-clean
 ```
 
-The `docker-compose.yml` uses a named volume (`auction-data`) to persist `users.dat` and `items.dat` across container restarts.
+The `docker-compose.yml` uses named volumes (`auction-data`, `auction-logs`) to persist `users.dat`, `items.dat`, and `server.log` across container restarts.
 
 ### CI/CD Pipeline (Jenkins)
 

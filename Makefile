@@ -28,3 +28,19 @@ init_db:
 clean:
 	rm -f $(BIN_DIR)/server $(BIN_DIR)/client
 	rm -rf data logs
+
+# ---- Docker Targets ----
+
+# Pull the image from DockerHub and start the server container
+docker-up:
+	docker-compose up -d
+	@echo "Server is running on port 8085"
+	@echo "Run 'make init_dirs client && ./bin/client' to connect"
+
+# Stop the server container
+docker-down:
+	docker-compose down
+
+# Stop and remove all persisted data
+docker-clean:
+	docker-compose down -v
