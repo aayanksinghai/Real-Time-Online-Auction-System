@@ -26,49 +26,36 @@ int get_next_user_id() {
     return max_id + 1;
 }
 
-int register_user(const char *username, const char *password, int role, int initial_balance) {
+int register_user(const char *username, const char *password, int role, int initial_balance, const char *sec_answer) {
     int fd = open(USER_FILE, O_RDWR | O_CREAT, 0666);
     if (fd == -1) return -1;
 
-    // Apply a write lock to the entire file to prevent race conditions during registration
-    if (lock_record(fd, F_WRLCK, 0, 0) == -1) {
-        close(fd); 
-        return -1;
-    }
+    if (lock_record(fd, F_WRLCK, 0, 0) == -1) { close(fd); return -1; }
 
     User u;
     lseek(fd, 0, SEEK_SET);
-    // Check if the username already exists
     while (read(fd, &u, sizeof(User)) > 0) {
         if (strcmp(u.username, username) == 0) {
-            unlock_record(fd, 0, 0);
-            close(fd);
-            return -2; // Code -2: Username already exists
+            unlock_record(fd, 0, 0); close(fd); return -2; 
         }
     }
 
-    // Calculate the new User ID based on the file size
     off_t file_size = lseek(fd, 0, SEEK_END);
     int new_id = (file_size / sizeof(User)) + 1;
 
     User new_user;
     new_user.id = new_id;
     strcpy(new_user.username, username);
-    
-    // --- UPDATED: Hash the password instead of saving plain-text ---
     hash_password(password, new_user.password); 
-    
     new_user.role = role;
     new_user.balance = initial_balance;
-    
-    // --- UPDATED: Initialize the cooldown timestamp to 0 ---
     new_user.cooldown_until = 0; 
+    
+    // --- HASH AND SAVE SECURITY ANSWER ---
+    hash_password(sec_answer, new_user.security_answer);
 
-    // Write the new user to the end of the file
     write(fd, &new_user, sizeof(User));
-
-    unlock_record(fd, 0, 0);
-    close(fd);
+    unlock_record(fd, 0, 0); close(fd);
     
     return new_id;
 }
@@ -324,4 +311,41 @@ int reset_password(int user_id, const char *old_pwd, const char *new_pwd) {
     unlock_record(fd, offset, sizeof(User));
     close(fd);
     return 1;
+}
+
+int process_forgot_password(const char *username, const char *sec_answer, const char *new_password) {
+    int fd = open(USER_FILE, O_RDWR);
+    if (fd == -1) return -1;
+    if (lock_record(fd, F_WRLCK, 0, 0) == -1) { close(fd); return -1; }
+
+    User u;
+    int found = 0;
+    off_t offset = 0;
+    
+    // Scan for the username
+    while (read(fd, &u, sizeof(User)) > 0) {
+        if (strcmp(u.username, username) == 0) {
+            found = 1;
+            break;
+        }
+        offset += sizeof(User);
+    }
+
+    if (!found) { unlock_record(fd, 0, 0); close(fd); return -1; } // User not found
+
+    // Hash the provided answer to compare it
+    char hashed_ans[50];
+    hash_password(sec_answer, hashed_ans);
+
+    if (strcmp(u.security_answer, hashed_ans) != 0) {
+        unlock_record(fd, 0, 0); close(fd); return -2; // Wrong answer
+    }
+
+    // Answer is correct! Hash and save the new password
+    hash_password(new_password, u.password);
+    lseek(fd, offset, SEEK_SET);
+    write(fd, &u, sizeof(User));
+
+    unlock_record(fd, 0, 0); close(fd);
+    return 1; // Success
 }

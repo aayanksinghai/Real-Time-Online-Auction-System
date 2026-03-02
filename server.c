@@ -11,7 +11,7 @@
 
 #define PORT 8085
 
-int register_user(char *username, char *password, int role, int initial_balance);
+int register_user(const char *username, const char *password, int role, int initial_balance, const char *sec_answer);
 int authenticate_user(char *username, char *password);
 int create_item(char *name, char *desc, int base_price, int duration_minutes, int seller_id);
 int get_all_items(Item *buffer, int max_items);
@@ -27,6 +27,7 @@ int get_user_cooldown(int user_id);
 void set_user_cooldown(int user_id, int cooldown_seconds);
 int has_active_bids(int user_id);
 int reset_password(int user_id, const char *old_pwd, const char *new_pwd);
+int process_forgot_password(const char *username, const char *sec_answer, const char *new_password);
 
 // MONITOR THREAD
 void *auction_monitor_thread(void *arg) {
@@ -61,23 +62,24 @@ void *client_handler(void *socket_desc) {
         
         switch(req.operation) {
             case OP_REGISTER:
-                printf("Register request: %s\n", req.username);
+                int init_bal;
+                char sec_ans[50];
                 
-                // Read balance from payload
-                int init_bal = atoi(req.payload);
+                // Unpack the balance and the security answer
+                sscanf(req.payload, "%d|%[^\n]", &init_bal, sec_ans);
                 
-                // Pass it to the registration function
-                int reg_status = register_user(req.username, req.password, ROLE_USER, init_bal);
+                // Call the updated function and store in reg_status
+                int reg_status = register_user(req.username, req.password, 1, init_bal, sec_ans);
                 
                 if (reg_status > 0) {
                     res.operation = OP_SUCCESS;
-                    strcpy(res.message, "Registration Successful! Please Login.");
+                    strcpy(res.message, "Registration successful! You can now login.");
                 } else if (reg_status == -2) {
                     res.operation = OP_ERROR;
-                    strcpy(res.message, "Username already exists.");
+                    strcpy(res.message, "Error: Username already exists.");
                 } else {
                     res.operation = OP_ERROR;
-                    strcpy(res.message, "Server Error.");
+                    strcpy(res.message, "Error: Registration failed.");
                 }
                 break;
 
@@ -366,6 +368,25 @@ void *client_handler(void *socket_desc) {
                 } else {
                     res.operation = OP_ERROR;
                     strcpy(res.message, "Error updating password.");
+                }
+                break;
+
+            case OP_FORGOT_PASSWORD:
+                char f_username[50], f_new_pass[50], f_sec_ans[50];
+                
+                // Extract data (putting answer last handles any spaces typed by the user)
+                sscanf(req.payload, "%[^|]|%[^|]|%[^\n]", f_username, f_new_pass, f_sec_ans);
+                
+                int f_res = process_forgot_password(f_username, f_sec_ans, f_new_pass);
+                if (f_res == 1) {
+                    res.operation = OP_SUCCESS;
+                    strcpy(res.message, "Password successfully reset! You can now login.");
+                } else if (f_res == -2) {
+                    res.operation = OP_ERROR;
+                    strcpy(res.message, "Error: Incorrect security answer.");
+                } else {
+                    res.operation = OP_ERROR;
+                    strcpy(res.message, "Error: Username not found.");
                 }
                 break;
         }

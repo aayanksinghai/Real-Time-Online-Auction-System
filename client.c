@@ -70,7 +70,12 @@ int main() {
     Response res;
 
     while(1) {
-        printf("\n1. Register\n2. Login\n3. Exit\nEnter choice: ");
+        printf("\n--- WELCOME TO THE AUCTION SYSTEM ---\n");
+        printf("1. Register\n");
+        printf("2. Login\n");
+        printf("3. Forgot Password\n");
+        printf("4. Exit\n");
+        printf("Enter choice: ");
         scanf("%d", &choice);
         clear_input();
 
@@ -79,6 +84,7 @@ int main() {
         if (choice == 1) {
             req.operation = OP_REGISTER;
             int initial_balance = 0;
+            char sec_ans[50];
             
             printf("Enter Username: "); 
             scanf("%s", req.username); 
@@ -87,10 +93,12 @@ int main() {
             get_password(req.password, 50);
             printf("Enter Initial Balance: "); 
             scanf("%d", &initial_balance);
+            clear_input();
+            printf("\nSecurity Question: What is your favorite food?\n");
+            printf("Enter Answer: "); scanf(" %[^\n]", sec_ans); clear_input();
             
             // Send the balance in the payload
-            sprintf(req.payload, "%d", initial_balance);
-            
+            sprintf(req.payload, "%d|%s", initial_balance, sec_ans);            
             send(sock, &req, sizeof(Request), 0);
             recv_all(sock, &res, sizeof(Response));
             printf("Server: %s\n", res.message);
@@ -366,9 +374,27 @@ int main() {
             }
         }
         else if (choice == 3) {
+            req.operation = OP_FORGOT_PASSWORD;
+            char f_user[50], f_pass[50], f_ans[50];
+            
+            printf("Enter Username: "); scanf("%s", f_user); clear_input();
+            printf("Enter New Password: "); get_password(f_pass, 50);
+            printf("\nSecurity Question: What is your favorite food?\n");
+            printf("Enter Answer: "); scanf(" %[^\n]", f_ans); clear_input();
+            
+            // Package payload
+            sprintf(req.payload, "%s|%s|%s", f_user, f_pass, f_ans);
+            send(sock, &req, sizeof(Request), 0);
+            recv_all(sock, &res, sizeof(Response));
+            printf("Server: %s\n", res.message);
+        }
+        else if (choice == 4) {
             req.operation = OP_EXIT;
             send(sock, &req, sizeof(Request), 0);
+            printf("Exiting...\n");
             break;
+        }else {
+            printf("Invalid choice.\n");
         }
     }
     close(sock);

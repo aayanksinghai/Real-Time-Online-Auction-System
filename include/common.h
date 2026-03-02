@@ -21,6 +21,7 @@
 #define OP_WITHDRAW_BID 12
 #define OP_CHECK_ACTIVE_BIDS 13
 #define OP_RESET_PASSWORD 14
+#define OP_FORGOT_PASSWORD 15
 #define OP_SUCCESS 100
 #define OP_ERROR 101
 
@@ -40,6 +41,7 @@ typedef struct {
     int role;         // ROLE_ADMIN or ROLE_USER
     int balance;
     time_t cooldown_until;
+    char security_answer[50];
 } User;
 
 typedef struct {
