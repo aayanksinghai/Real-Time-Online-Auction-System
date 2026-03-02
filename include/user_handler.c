@@ -26,58 +26,51 @@ int get_next_user_id() {
     return max_id + 1;
 }
 
-int register_user(char *username, char *password, int role, int initial_balance) {
+int register_user(const char *username, const char *password, int role, int initial_balance) {
     int fd = open(USER_FILE, O_RDWR | O_CREAT, 0666);
-    if (fd == -1) {
-        perror("Open Error");
+    if (fd == -1) return -1;
+
+    // Apply a write lock to the entire file to prevent race conditions during registration
+    if (lock_record(fd, F_WRLCK, 0, 0) == -1) {
+        close(fd); 
         return -1;
     }
 
-    // Lock the ENTIRE file for writing to ensure unique ID and append
-    // (We use lock_record from Phase 1, but offset 0 and size 0 means "Whole File" in some systems, 
-    // but here we will just lock the end of file roughly)
-    // Actually, for append, used a write lock on the whole file for safety.
-    struct flock lock;
-    lock.l_type = F_WRLCK;
-    lock.l_whence = SEEK_SET;
-    lock.l_start = 0;
-    lock.l_len = 0; // Lock whole file
-    fcntl(fd, F_SETLKW, &lock);
-
-    // Check if username exists
     User u;
-    while(read(fd, &u, sizeof(User)) > 0) {
+    lseek(fd, 0, SEEK_SET);
+    // Check if the username already exists
+    while (read(fd, &u, sizeof(User)) > 0) {
         if (strcmp(u.username, username) == 0) {
-            // Unlock and close
-            lock.l_type = F_UNLCK;
-            fcntl(fd, F_SETLKW, &lock);
+            unlock_record(fd, 0, 0);
             close(fd);
-            return -2; // Username taken
+            return -2; // Code -2: Username already exists
         }
     }
 
-    // Create new user
+    // Calculate the new User ID based on the file size
+    off_t file_size = lseek(fd, 0, SEEK_END);
+    int new_id = (file_size / sizeof(User)) + 1;
+
     User new_user;
-    new_user.id = get_next_user_id(); // This helper re-opens file, but we are holding lock so it's safe-ish 
-    // (Actually simpler: just count the read loop above to find max_id, but for now let's hardcode next logic)
-    // Refined logic: We are at EOF now.
-    new_user.id = (lseek(fd, 0, SEEK_END) / sizeof(User)) + 1;
+    new_user.id = new_id;
     strcpy(new_user.username, username);
-    strcpy(new_user.password, password);
+    
+    // --- UPDATED: Hash the password instead of saving plain-text ---
+    hash_password(password, new_user.password); 
+    
     new_user.role = role;
     new_user.balance = initial_balance;
-    new_user.cooldown_until = 0;
+    
+    // --- UPDATED: Initialize the cooldown timestamp to 0 ---
+    new_user.cooldown_until = 0; 
 
+    // Write the new user to the end of the file
     write(fd, &new_user, sizeof(User));
 
-    char log_buffer[256];
-    sprintf(log_buffer, "New User Registered: ID %d Name %s", new_user.id, username);
-    write_log(log_buffer);
-
-    lock.l_type = F_UNLCK;
-    fcntl(fd, F_SETLKW, &lock);
+    unlock_record(fd, 0, 0);
     close(fd);
-    return new_user.id;
+    
+    return new_id;
 }
 
 int get_user_balance(int user_id) {
@@ -103,31 +96,39 @@ int get_user_balance(int user_id) {
     return u.balance;
 }
 
-int authenticate_user(char *username, char *password) {
+int authenticate_user(const char *username, const char *password) {
     int fd = open(USER_FILE, O_RDONLY);
     if (fd == -1) return -1;
 
-    // Read Lock Whole File (Shared)
-    struct flock lock;
-    lock.l_type = F_RDLCK;
-    lock.l_whence = SEEK_SET;
-    lock.l_start = 0;
-    lock.l_len = 0;
-    fcntl(fd, F_SETLKW, &lock);
+    // Apply a read lock
+    if (lock_record(fd, F_RDLCK, 0, 0) == -1) {
+        close(fd); 
+        return -1;
+    }
 
     User u;
-    int found_id = -1;
-    while(read(fd, &u, sizeof(User)) > 0) {
-        if (strcmp(u.username, username) == 0 && strcmp(u.password, password) == 0) {
-            found_id = u.id;
-            break;
+    int authenticated_id = -1; // <--- We declare the variable here!
+
+    // Scan the file for the username
+    while (read(fd, &u, sizeof(User)) > 0) {
+        if (strcmp(u.username, username) == 0) {
+            
+            // Hash the incoming password to compare it against the stored hash
+            char hashed_incoming[50];
+            hash_password(password, hashed_incoming);
+            
+            // If the hashes match, grab the user's ID
+            if (strcmp(u.password, hashed_incoming) == 0) {
+                authenticated_id = u.id;
+            }
+            break; // Username found, no need to keep reading the file
         }
     }
 
-    lock.l_type = F_UNLCK;
-    fcntl(fd, F_SETLKW, &lock);
+    unlock_record(fd, 0, 0);
     close(fd);
-    return found_id;
+    
+    return authenticated_id; // Will return -1 if not found or wrong password
 }
 
 int transfer_funds(int from_user_id, int to_user_id, int amount) {
@@ -279,4 +280,48 @@ void set_user_cooldown(int user_id, int cooldown_seconds) {
         unlock_record(fd, offset, sizeof(User));
     }
     close(fd);
+}
+
+// Lightweight DJB2 Hash Algorithm to safely scramble passwords
+void hash_password(const char *str, char *output) {
+    unsigned long hash = 5381;
+    int c;
+    while ((c = *str++)) {
+        hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+    }
+    // Convert the numeric hash into a string we can store
+    sprintf(output, "%lu", hash); 
+}
+
+int reset_password(int user_id, const char *old_pwd, const char *new_pwd) {
+    int fd = open(USER_FILE, O_RDWR);
+    if (fd == -1) return -1;
+
+    off_t offset = (user_id - 1) * sizeof(User);
+    if (lock_record(fd, F_WRLCK, offset, sizeof(User)) == -1) {
+        close(fd); return -1;
+    }
+
+    User u;
+    lseek(fd, offset, SEEK_SET);
+    if (read(fd, &u, sizeof(User)) <= 0) {
+        unlock_record(fd, offset, sizeof(User)); close(fd); return -1;
+    }
+
+    // Verify old password
+    char hashed_old[50];
+    hash_password(old_pwd, hashed_old);
+    if (strcmp(u.password, hashed_old) != 0) {
+        unlock_record(fd, offset, sizeof(User)); close(fd); return -2; // Incorrect old password
+    }
+
+    // Hash and save new password
+    hash_password(new_pwd, u.password);
+
+    lseek(fd, offset, SEEK_SET);
+    write(fd, &u, sizeof(User));
+
+    unlock_record(fd, offset, sizeof(User));
+    close(fd);
+    return 1;
 }

@@ -20,6 +20,7 @@
 #define OP_CHECK_SELLER 11
 #define OP_WITHDRAW_BID 12
 #define OP_CHECK_ACTIVE_BIDS 13
+#define OP_RESET_PASSWORD 14
 #define OP_SUCCESS 100
 #define OP_ERROR 101
 
@@ -93,5 +94,6 @@ typedef struct {
 } DisplayItem;
 
 void get_username(int user_id, char *buffer);
+void hash_password(const char *str, char *output);
 
 #endif

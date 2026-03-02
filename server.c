@@ -26,6 +26,7 @@ int withdraw_bid(int item_id, int user_id);
 int get_user_cooldown(int user_id);
 void set_user_cooldown(int user_id, int cooldown_seconds);
 int has_active_bids(int user_id);
+int reset_password(int user_id, const char *old_pwd, const char *new_pwd);
 
 // MONITOR THREAD
 void *auction_monitor_thread(void *arg) {
@@ -349,6 +350,23 @@ void *client_handler(void *socket_desc) {
                 int active_bids_status = has_active_bids(my_user_id);
                 res.operation = OP_SUCCESS;
                 sprintf(res.message, "%d", active_bids_status);
+                break;
+
+            case OP_RESET_PASSWORD:
+                char old_pass[50], new_pass[50];
+                sscanf(req.payload, "%[^|]|%s", old_pass, new_pass);
+                
+                int reset_res = reset_password(my_user_id, old_pass, new_pass);
+                if (reset_res == 1) {
+                    res.operation = OP_SUCCESS;
+                    strcpy(res.message, "Password successfully updated.");
+                } else if (reset_res == -2) {
+                    res.operation = OP_ERROR;
+                    strcpy(res.message, "Error: Incorrect current password.");
+                } else {
+                    res.operation = OP_ERROR;
+                    strcpy(res.message, "Error updating password.");
+                }
                 break;
         }
         send(sock, &res, sizeof(Response), 0);

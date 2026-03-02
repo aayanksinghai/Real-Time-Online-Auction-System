@@ -5,8 +5,39 @@
 #include <arpa/inet.h>
 #include <time.h>
 #include "include/common.h"
+#include <termios.h>
 
 void clear_input() { while (getchar() != '\n'); }
+
+void get_password(char *password, int max_len) {
+    struct termios oldt, newt;
+    int ch, i = 0;
+    
+    // Disable terminal echoing
+    tcgetattr(STDIN_FILENO, &oldt);
+    newt = oldt;
+    newt.c_lflag &= ~(ICANON | ECHO);
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+
+    while (i < max_len - 1) {
+        ch = getchar();
+        if (ch == '\n' || ch == EOF) break;
+        if (ch == 127 || ch == 8) { // Handle Backspace
+            if (i > 0) {
+                i--;
+                printf("\b \b");
+            }
+        } else {
+            password[i++] = ch;
+            printf("*"); // Print asterisk instead of character
+        }
+    }
+    password[i] = '\0';
+    printf("\n");
+    
+    // Restore terminal echoing
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+}
 
 int recv_all(int sock, void *buffer, size_t length) {
     size_t total_received = 0;
@@ -49,9 +80,13 @@ int main() {
             req.operation = OP_REGISTER;
             int initial_balance = 0;
             
-            printf("Enter Username: "); scanf("%s", req.username);
-            printf("Enter Password: "); scanf("%s", req.password);
-            printf("Enter Initial Balance: "); scanf("%d", &initial_balance);
+            printf("Enter Username: "); 
+            scanf("%s", req.username); 
+            clear_input();
+            printf("Enter Password: "); 
+            get_password(req.password, 50);
+            printf("Enter Initial Balance: "); 
+            scanf("%d", &initial_balance);
             
             // Send the balance in the payload
             sprintf(req.payload, "%d", initial_balance);
@@ -62,8 +97,8 @@ int main() {
         }
         else if (choice == 2) {
             req.operation = OP_LOGIN;
-            printf("Enter Username: "); scanf("%s", req.username);
-            printf("Enter Password: "); scanf("%s", req.password);
+            printf("Enter Username: "); scanf("%s", req.username); clear_input(); // Added clear_input
+            printf("Enter Password: "); get_password(req.password, 50); // MASKED
             if (send(sock, &req, sizeof(Request), 0) < 0) {
                 printf("Error: Send failed.\n");
                 break;
@@ -82,7 +117,7 @@ int main() {
                 char display_msg[200];
                 sscanf(res.message, "%d|%[^\n]", &my_client_id, display_msg);
 
-                printf("Server: %s\n", display_msg);
+                //printf("Server: %s\n", display_msg);
                 // --- ENTERING AUCTION MENU LOOP ---
                 int logged_in = 1;
                 while(logged_in) {
@@ -107,6 +142,7 @@ int main() {
                     int opt_bal      = current_opt++;
                     int opt_mybids   = current_opt++;
                     int opt_hist     = current_opt++;
+                    int opt_reset    = current_opt++;
                     int opt_logout   = current_opt++;
 
                     // 3. Print Dynamic Menu
@@ -119,6 +155,7 @@ int main() {
                     printf("%d. Check Balance\n", opt_bal);
                     printf("%d. My Active Bids\n", opt_mybids);
                     printf("%d. Transaction History\n", opt_hist);
+                    printf("%d. Reset Password\n", opt_reset);
                     printf("%d. Logout\n", opt_logout);
                     printf("Enter choice: ");
                     
@@ -303,6 +340,18 @@ int main() {
                             }
                             if (won_count == 0) printf("You haven't won any items yet.\n");
                         }
+                    }
+                    else if (menu_choice == opt_reset) {
+                        req.operation = OP_RESET_PASSWORD;
+                        char old_p[50], new_p[50];
+                        
+                        printf("Enter Current Password: "); get_password(old_p, 50);
+                        printf("Enter New Password: "); get_password(new_p, 50);
+                        
+                        sprintf(req.payload, "%s|%s", old_p, new_p);
+                        send(sock, &req, sizeof(Request), 0);
+                        recv_all(sock, &res, sizeof(Response));
+                        printf("Server: %s\n", res.message);
                     }
                     else if (menu_choice == opt_logout) {
                         req.operation = OP_EXIT;
