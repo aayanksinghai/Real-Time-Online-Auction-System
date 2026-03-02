@@ -240,9 +240,9 @@ While (candidates remain):
 
 ### Prerequisites
 
-- GCC compiler
 - POSIX-compliant OS (Linux/macOS)
-- (Optional) Docker and Docker Compose
+- **For local setup**: GCC compiler
+- **For Docker setup**: Docker
 
 ### Local Setup
 
@@ -268,33 +268,28 @@ make
 make clean
 ```
 
-### Docker Setup
+### Docker Setup (Pull from DockerHub)
 
-The server image is available on DockerHub. No source code needed to run the server.
-
-```bash
-# Step 1: Start the server (auto-pulls the image from DockerHub)
-make docker-up
-
-# The server is now running on port 8085.
-# The container auto-restarts on reboot (unless manually stopped).
-```
+No source code, no compiler needed. Only Docker is required.
 
 ```bash
-# Step 2: Compile and run the client locally (requires GCC)
-make init_dirs client
-./bin/client
+# Step 1: Pull the image and start the server container
+docker run -d -p 8085:8085 --name auction-server aayanksinghai/auction-system:latest
+
+# Step 2: Extract the pre-compiled client binary from the container
+docker cp auction-server:/usr/src/app/bin/client ./client
+
+# Step 3: Run the client (open multiple terminals to test concurrency)
+./client
 ```
 
 ```bash
 # Stop the server
-make docker-down
+docker stop auction-server
 
-# Stop and remove all persisted data
-make docker-clean
+# Stop and remove the container
+docker stop auction-server && docker rm auction-server
 ```
-
-The `docker-compose.yml` uses named volumes (`auction-data`, `auction-logs`) to persist `users.dat`, `items.dat`, and `server.log` across container restarts.
 
 ### CI/CD Pipeline (Jenkins)
 
