@@ -4,30 +4,12 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <pthread.h>
-#include "include/common.h"
-#include "include/file_handler.h" // You need to add prototypes for user_handler here or create a user_handler.h
-#include "include/session.h"
-#include "include/logger.h"
-
-#define PORT 8085
-
-int register_user(const char *username, const char *password, int role, int initial_balance, const char *sec_answer);
-int authenticate_user(char *username, char *password);
-int create_item(char *name, char *desc, int base_price, int duration_minutes, int seller_id);
-int get_all_items(Item *buffer, int max_items);
-int place_bid(int item_id, int user_id, int bid_amount);
-int get_user_balance(int user_id);
-int close_auction(int item_id, int seller_id);
-int get_my_bids(int user_id, Item *buffer, int max_items);
-int get_transaction_history(int user_id, Item *buffer, int max_items);
-int is_user_seller(int user_id);
-void check_expired_items();
-int withdraw_bid(int item_id, int user_id);
-int get_user_cooldown(int user_id);
-void set_user_cooldown(int user_id, int cooldown_seconds);
-int has_active_bids(int user_id);
-int reset_password(int user_id, const char *old_pwd, const char *new_pwd);
-int process_forgot_password(const char *username, const char *sec_answer, const char *new_password);
+#include "common.h"
+#include "file_handler.h"
+#include "user_handler.h"
+#include "item_handler.h"
+#include "session.h"
+#include "logger.h"
 
 // MONITOR THREAD
 void *auction_monitor_thread(void *arg) {

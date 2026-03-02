@@ -2,9 +2,8 @@
 *.o
 *.obj
 
-# Executables (Specific to your Makefile)
-server
-client
+# Compiled binaries
+bin/
 
 # Standard Executables
 *.exe
@@ -24,8 +23,10 @@ a.out
 *.pdb
 *.su
 
-# Data directory (Corrected)
+# Data directory
 data/
 
+# Logs directory
+logs/
+
 extensions.txt
-server.log

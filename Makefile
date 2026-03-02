@@ -1,20 +1,30 @@
 CC = gcc
 CFLAGS = -I./include -pthread
 
-all: server client init_db
+SRC_DIR = src
+BIN_DIR = bin
 
-server: server.c include/file_handler.c include/user_handler.c include/session.c include/item_handler.c include/logger.c
-	$(CC) $(CFLAGS) server.c include/file_handler.c include/user_handler.c include/session.c include/item_handler.c include/logger.c -o server
+SERVER_SRC = $(SRC_DIR)/server.c $(SRC_DIR)/file_handler.c $(SRC_DIR)/user_handler.c $(SRC_DIR)/session.c $(SRC_DIR)/item_handler.c $(SRC_DIR)/logger.c
+CLIENT_SRC = $(SRC_DIR)/client.c
 
-client: client.c
-	$(CC) $(CFLAGS) client.c -o client
+all: init_dirs server client init_db
 
-# Helper to create empty binary files if they don't exist
+server: $(SERVER_SRC)
+	$(CC) $(CFLAGS) $(SERVER_SRC) -o $(BIN_DIR)/server
+
+client: $(CLIENT_SRC)
+	$(CC) $(CFLAGS) $(CLIENT_SRC) -o $(BIN_DIR)/client
+
+# Create required directories
+init_dirs:
+	mkdir -p $(BIN_DIR) logs
+
+# Create empty binary data files if they don't exist
 init_db:
 	mkdir -p data
 	touch data/users.dat
 	touch data/items.dat
 
 clean:
-	rm -f server client
-	rm -rf data
+	rm -f $(BIN_DIR)/server $(BIN_DIR)/client
+	rm -rf data logs

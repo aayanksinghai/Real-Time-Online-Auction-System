@@ -1,55 +1,312 @@
 # Real-Time Online Auction System
 
-A concurrent, multi-threaded auction platform implemented in C, demonstrating advanced System Programming concepts including Record-Level Locking, Semaphores, and Socket Programming.
+A concurrent, multi-threaded auction platform built in C using Socket Programming, demonstrating core System Programming concepts such as Record-Level File Locking (`fcntl`), POSIX Threads (`pthread`), Mutex Synchronization, Escrow-based Fund Management, and a custom binary protocol over TCP.
 
-## 🚀 Key Technical Features
+## Tech Stack
 
-- **Concurrency:** Handles multiple clients simultaneously using `pthread`.
-- **Record-Level Locking (`fcntl`):** \* Unlike simple file locking, this system allows User A to bid on Item #1 while User B bids on Item #2 simultaneously.
-  - Implements **Readers-Writer Lock** logic (Shared locks for viewing, Exclusive locks for bidding).
-- **Deadlock Prevention:** \* Fund transfer transactions use a strictly ordered locking protocol (always lock smaller ID first) to prevent circular wait conditions.
-- **Persistence:** All data is stored in binary files (`users.dat`, `items.dat`) for efficiency.
-- **Session Management:** In-memory session tracking prevents the same user from logging in twice.
+| Layer            | Technology                                                                     |
+| ---------------- | ------------------------------------------------------------------------------ |
+| Language         | C (GCC)                                                                        |
+| Networking       | TCP Sockets (`socket`, `bind`, `listen`, `accept`)                             |
+| Concurrency      | POSIX Threads (`pthread_create`, `pthread_mutex`)                              |
+| File Locking     | `fcntl` Advisory Record-Level Locks (`F_RDLCK`, `F_WRLCK`)                     |
+| Storage          | Binary flat-files with offset-based random access (`lseek`, `pread`, `pwrite`) |
+| Security         | DJB2 password hashing, masked terminal input (`termios`)                       |
+| Containerization | Docker, Docker Compose                                                         |
+| CI/CD            | Jenkins Pipeline (Build + Push to DockerHub)                                   |
 
-## 🛠️ Architecture
+## Architecture
 
-- **Server:** Multi-threaded TCP server.
-- **Client:** Menu-driven command-line interface.
-- **Database:** Binary flat-files with offset-based random access (`lseek`).
+```
+┌──────────┐   TCP/8085   ┌───────────────────────────────────────────┐
+│  Client   │◄────────────►│              Server                       │
+│ (client.c)│   Request/   │                                           │
+│  Menu UI  │   Response   │  ┌─────────────┐  ┌────────────────────┐ │
+└──────────┘   structs     │  │ Thread Pool  │  │  Auction Monitor   │ │
+                           │  │ (per-client) │  │  (background tick) │ │
+┌──────────┐               │  └──────┬───────┘  └────────┬───────────┘ │
+│  Client   │◄────────────►│         │                    │             │
+└──────────┘               │  ┌──────▼────────────────────▼───────────┐│
+                           │  │          Handler Layer                 ││
+┌──────────┐               │  │  user_handler │ item_handler │ session ││
+│  Client   │◄────────────►│  └──────┬────────────────────┬───────────┘│
+└──────────┘               │         │    fcntl locks      │            │
+                           │  ┌──────▼────────────────────▼───────────┐│
+                           │  │       Binary Data Files               ││
+                           │  │    data/users.dat  data/items.dat     ││
+                           │  └───────────────────────────────────────┘│
+                           └───────────────────────────────────────────┘
+```
 
-## ⚙️ How to Compile & Run
+- **Server**: Multi-threaded TCP server. Each client connection spawns a dedicated `pthread`. A background monitor thread auto-closes expired auctions every second.
+- **Client**: Menu-driven CLI that communicates with the server using fixed-size `Request`/`Response` structs over TCP.
+- **Storage**: Binary flat-files (`users.dat`, `items.dat`) accessed via direct offset calculation (`(id - 1) * sizeof(struct)`), enabling O(1) record lookups.
 
-1.  **Build the Project:**
+## Key Functionalities
 
-    ```bash
-    make
-    ```
+### User Management
 
-    _(This compiles server, client, and initializes the binary database files)_
+- **Registration** with initial balance and security question
+- **Login/Logout** with duplicate session prevention (max 10 concurrent users)
+- **Password Hashing** using DJB2 algorithm (passwords are never stored in plaintext)
+- **Reset Password** (authenticated) and **Forgot Password** (via security question)
+- **Masked Password Input** using `termios` to disable terminal echo
 
-2.  **Start the Server:**
+### Auction Operations
 
-    ```bash
-    ./server
-    ```
+- **List Items for Sale** with a time-based duration (minutes)
+- **View All Auctions** with live countdown timers
+- **Place Bids** with real-time validation (must exceed current highest bid)
+- **Close Auction Manually** (seller only) or automatic expiry via background monitor
+- **Withdraw Bid** with escrow refund and 2-minute cooldown penalty
 
-    _Runs on Port 8888 by default._
+### Financial System (Escrow Model)
 
-3.  **Start a Client (Open multiple terminals):**
-    ```bash
-    ./client
-    ```
+- On placing a bid, funds are **deducted (escrowed)** from the bidder's balance immediately
+- If a higher bid arrives, the **previous bidder is automatically refunded**
+- On auction close, escrowed funds are **transferred to the seller**
+- On bid withdrawal, the next highest bidder who can afford the escrow is promoted
 
-## 🧪 Suggested Test Scenarios
+### Dynamic Menu System
 
-1.  **The Bidding War:** Open two terminals. User A bids on an item. User B tries to bid a lower amount (rejected) and then a higher amount (accepted).
-2.  **Concurrency Check:** Have User A sit on the "Place Bid" screen (which holds a lock if implemented with wait). Have User B try to bid on the _same_ item.
-3.  **Transaction:** Seller closes an auction. Verify Winner's balance decreases and Seller's balance increases.
+- Menu options adapt based on user state (e.g., "Close Auction" only appears if the user has active listings, "Withdraw Bid" only if they have active bids)
 
-## 📂 File Structure
+### Logging
 
-- `server.c` / `client.c`: Entry points.
-- `include/file_handler.c`: Low-level wrapper for `fcntl` locking.
-- `include/item_handler.c`: Logic for bidding and item creation.
-- `include/user_handler.c`: Logic for auth and funds transfer.
-- `include/logger.c`: Thread-safe audit logging.
+- Thread-safe audit logging (`pthread_mutex`) to `logs/server.log`
+- Logs: connections, logins/logouts, bids, item listings, auction closures, fund transfers
+
+## Concurrency and Locking Concepts
+
+### 1. Record-Level Locking (`fcntl`)
+
+Unlike whole-file locking, this system uses **byte-range advisory locks** via `fcntl(fd, F_SETLKW, &lock)` to lock individual records. This means:
+
+- User A can bid on **Item #1** while User B simultaneously bids on **Item #2** (different byte ranges, no contention)
+- If both bid on the **same item**, the second thread blocks (`F_SETLKW` = blocking wait) until the first completes
+
+```
+// Lock a single record at a calculated offset
+lock.l_type   = F_WRLCK;           // Exclusive write lock
+lock.l_whence = SEEK_SET;
+lock.l_start  = (item_id - 1) * sizeof(Item);  // Byte offset
+lock.l_len    = sizeof(Item);       // Lock only this record
+fcntl(fd, F_SETLKW, &lock);        // Block until lock acquired
+```
+
+**Readers-Writer Logic**: Viewing items uses `F_RDLCK` (shared lock, multiple readers allowed), while bidding/updating uses `F_WRLCK` (exclusive lock, blocks all other access).
+
+### 2. Deadlock Prevention (Ordered Locking)
+
+The `transfer_funds()` function must lock **two user records** simultaneously. Without ordering, this classic scenario causes deadlock:
+
+| Thread 1           | Thread 2           |
+| ------------------ | ------------------ |
+| Lock User A        | Lock User B        |
+| Wait for User B... | Wait for User A... |
+| **DEADLOCK**       | **DEADLOCK**       |
+
+**Solution**: Always lock the **smaller user ID first**, breaking the circular wait condition:
+
+```c
+int first_id  = (from_user_id < to_user_id) ? from_user_id : to_user_id;
+int second_id = (from_user_id < to_user_id) ? to_user_id : from_user_id;
+// Lock first_id, then second_id -- guaranteed no circular wait
+```
+
+### 3. Mutex Synchronization (`pthread_mutex`)
+
+Used for in-memory shared data that `fcntl` cannot protect:
+
+- **Session Array**: `session_lock` mutex prevents race conditions when two threads simultaneously try to log in or detect duplicate sessions
+- **Log File**: `log_lock` mutex prevents interleaved log lines when multiple threads write concurrently
+
+### 4. Race Condition: Auction Expiry During Bid
+
+A bid could be placed at the exact moment an auction expires. The system handles this by **re-checking the timer inside the write lock**:
+
+```c
+// Already holding exclusive lock on the item record
+if (time(NULL) >= item.end_time) {
+    // Reject the bid -- auction expired between the user's request and the lock acquisition
+    return -4;
+}
+```
+
+### 5. Race Condition: Withdraw Cascading to Next Bidder
+
+When a bid is withdrawn, the system must find the next highest bidder and re-escrow their funds. But that bidder may have **spent their money elsewhere** between their original bid and now. The system handles this in a loop:
+
+```
+While (candidates remain):
+    Find highest remaining bid
+    Try to deduct (escrow) their funds
+    If success -> they are the new winner, break
+    If fail   -> disqualify them, try next highest
+```
+
+## Test Scenarios
+
+### Scenario 1: Bidding War (Record Locking)
+
+1. Open **two client terminals**, register and log in as User A and User B
+2. User A lists an item with base price $100
+3. User A (from terminal 1) views items to get the Item ID
+4. User B bids $150 on the item -- accepted
+5. User A bids $120 -- **rejected** (lower than current bid of $150)
+6. User A bids $200 -- accepted, User B is **automatically refunded** $150
+
+### Scenario 2: Concurrent Bids on Same Item (Lock Contention)
+
+1. User A and User B both attempt to bid on the **same item** at the same instant
+2. One thread acquires the `F_WRLCK` on the item record first
+3. The second thread **blocks** until the first completes
+4. The second bid is then validated against the **updated** current bid
+5. Verify: no data corruption, the higher bid wins
+
+### Scenario 3: Concurrent Bids on Different Items (No Contention)
+
+1. User A bids on Item #1, User B bids on Item #2 simultaneously
+2. Both succeed without blocking each other (different byte ranges locked)
+
+### Scenario 4: Escrow Fund Transfer
+
+1. User A registers with $500 balance, bids $300 on an item
+2. Check balance -- should show **$200** (300 escrowed)
+3. Seller closes the auction
+4. Check User A's balance -- still $200 (escrow transferred to seller)
+5. Check Seller's balance -- increased by $300
+
+### Scenario 5: Withdraw and Cooldown
+
+1. User A bids $200 on an item, User B bids $250 (User A is refunded $200)
+2. User B withdraws their bid -- refunded $250, **2-minute cooldown** applied
+3. User B immediately tries to bid again -- **rejected** (cooldown active)
+4. User A is automatically promoted as the highest bidder (if funds available)
+
+### Scenario 6: Auction Auto-Expiry
+
+1. List an item with a **1-minute** duration
+2. Wait for the timer to expire
+3. The background monitor thread automatically closes the auction
+4. Verify: funds transferred to seller, item status changes to "Ended"
+
+### Scenario 7: Deadlock Prevention (Fund Transfer)
+
+1. Simulate two auctions closing simultaneously where:
+   - Auction 1: User A (seller) receives funds from User B (winner)
+   - Auction 2: User B (seller) receives funds from User A (winner)
+2. Without ordered locking, this would deadlock. Verify both transactions complete.
+
+### Scenario 8: Duplicate Login Prevention
+
+1. User A logs in from Terminal 1
+2. Try logging in as User A from Terminal 2 -- **rejected** ("User already logged in")
+3. Log out from Terminal 1, then retry Terminal 2 -- succeeds
+
+## Project Structure
+
+```
+.
+├── src/                        # Source files (.c)
+│   ├── server.c                # Main server: TCP listener, client thread handler
+│   ├── client.c                # Main client: menu-driven UI
+│   ├── user_handler.c          # Registration, authentication, balance, password, cooldown
+│   ├── item_handler.c          # Item CRUD, bidding, auction close, expiry monitor
+│   ├── file_handler.c          # Generic fcntl record lock/unlock wrappers
+│   ├── session.c               # In-memory session tracking with mutex
+│   └── logger.c                # Thread-safe file logging with mutex
+├── include/                    # Header files (.h)
+│   ├── common.h                # Shared structs (User, Item, Request, Response), constants
+│   ├── user_handler.h          # User handler function prototypes
+│   ├── item_handler.h          # Item handler function prototypes
+│   ├── file_handler.h          # File lock/unlock function prototypes
+│   ├── session.h               # Session management function prototypes
+│   └── logger.h                # Logger function prototypes
+├── bin/                        # Compiled binaries (gitignored)
+├── data/                       # Runtime binary data files (gitignored)
+│   ├── users.dat               # User records
+│   └── items.dat               # Item/auction records
+├── logs/                       # Server log output (gitignored)
+│   └── server.log              # Audit log
+├── Makefile                    # Build configuration
+├── Dockerfile                  # Container image build
+├── docker-compose.yml          # Container orchestration
+├── Jenkinsfile                 # CI/CD pipeline
+└── README.md
+```
+
+## Installation and Usage
+
+### Prerequisites
+
+- GCC compiler
+- POSIX-compliant OS (Linux/macOS)
+- (Optional) Docker and Docker Compose
+
+### Local Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/aayanksinghai/Real-Time-Online-Auction-System.git
+cd Real-Time-Online-Auction-System
+
+# Build the project (compiles server + client, creates data/ and logs/ directories)
+make
+
+# Start the server (in one terminal)
+./bin/server
+
+# Start a client (in another terminal, run multiple for testing concurrency)
+./bin/client
+```
+
+> **Note**: Always run the binaries from the **project root directory** (`./bin/server`, not `cd bin && ./server`) since data and log paths are relative to the working directory.
+
+```bash
+# Clean build artifacts and data
+make clean
+```
+
+### Docker Setup
+
+```bash
+# Build and start the server container
+docker-compose up --build -d
+
+# The server runs on port 8085
+# Connect using a locally compiled client:
+make client
+./bin/client
+```
+
+```bash
+# Stop the container
+docker-compose down
+
+# Stop and remove persisted data
+docker-compose down -v
+```
+
+The `docker-compose.yml` uses a named volume (`auction-data`) to persist `users.dat` and `items.dat` across container restarts.
+
+### CI/CD Pipeline (Jenkins)
+
+The `Jenkinsfile` defines a three-stage pipeline:
+
+1. **Checkout** -- Clones the repository from GitHub
+2. **Build Image** -- Builds the Docker image (compilation happens inside the Dockerfile)
+3. **Push to DockerHub** -- Pushes the image as `aayanksinghai/auction-system:latest`
+
+## Protocol
+
+Client and server communicate using fixed-size C structs sent over TCP:
+
+| Direction        | Struct          | Key Fields                                                  |
+| ---------------- | --------------- | ----------------------------------------------------------- |
+| Client -> Server | `Request`       | `operation`, `username`, `password`, `payload`              |
+| Server -> Client | `Response`      | `operation` (SUCCESS/ERROR), `message`, `session_id`        |
+| Server -> Client | `DisplayItem`   | Used for item listing (id, name, bid, timer, winner)        |
+| Server -> Client | `HistoryRecord` | Used for transaction history (seller/winner names, amounts) |
+
+A custom `recv_all()` function ensures complete struct delivery over TCP, handling partial reads from the kernel buffer.

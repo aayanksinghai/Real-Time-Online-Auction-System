@@ -4,7 +4,7 @@
 #include <string.h>
 #include <pthread.h>
 
-#define LOG_FILE "server.log"
+#define LOG_FILE "logs/server.log"
 
 // Mutex to ensure lines don't get mixed up if two threads log at once
 pthread_mutex_t log_lock = PTHREAD_MUTEX_INITIALIZER;

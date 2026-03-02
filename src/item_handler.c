@@ -6,12 +6,10 @@
 #include <time.h>
 #include "common.h"
 #include "file_handler.h"
+#include "user_handler.h"
 #include "logger.h"
 
 #define ITEM_FILE "data/items.dat"
-
-extern int update_balance(int user_id, int amount_change);
-extern int get_user_cooldown(int user_id);
 
 int get_next_item_id(int fd) {
     long size = lseek(fd, 0, SEEK_END);

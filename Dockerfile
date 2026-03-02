@@ -14,4 +14,4 @@ RUN make init_db && make
 EXPOSE 8085
 
 # Set the default command to start the server
-CMD ["./server"]
+CMD ["./bin/server"]

@@ -4,7 +4,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <time.h>
-#include "include/common.h"
+#include "common.h"
 #include <termios.h>
 
 void clear_input() { while (getchar() != '\n'); }
